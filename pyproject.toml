@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools >= 61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project]
+name = "LatentAudio"
+version = "0.0.1"
+authors = [
+  { name="Tim Dick", email="timdi@icloud.com" },
+]
+description = "A processing pipeline for disentangling latent representations in auditory event recognition."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "sphinx == 5.2.3",
+    "sphinx-rtd-theme"
+]
