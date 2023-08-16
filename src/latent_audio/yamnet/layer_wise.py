@@ -4,6 +4,9 @@ from typing import Tuple
 import numpy as np
 
 class LayerWiseYamnet(tf.keras.Model):
+    """Provides an implementation of `yamnet <https://www.tensorflow.org/hub/tutorials/yamnet>`_ which allows to inspect the latent 
+    representation of a particular layer.
+    """
 
     class BatchNormalization(tf.keras.Model):
 
@@ -90,12 +93,17 @@ class LayerWiseYamnet(tf.keras.Model):
         self.built = True
 
     def load_weights(self, file_path: str) -> None:
-        
+        """Loads weights from a .h5 file. The weights are supposed to come from a regular yamnet, e.g. from 
+        `here <https://storage.googleapis.com/audioset/yamnet.h5>`_.
+
+        :param file_path: The path pointing towards the file .h5 containing the model weights.
+        :type file_path: str
+        """
+
         # Load weight into original yamnet
         yamnet = yamnet_lib.yamnet_frames_model(params.Params())
         yamnet.load_weights(file_path)
 
-        
         # Transfer weights from original to layerwise yamnet
         for layer in self.layers:
             for variable_1 in layer.variables:
@@ -106,9 +114,18 @@ class LayerWiseYamnet(tf.keras.Model):
                             variable_1.assign(variable_2)
                             did_load=True
                 if not did_load:
-                    print("Unable to load variables for ", variable_1.name)
+                    raise Exception("Unable to load variables for ", variable_1.name)
 
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
+        """Forward propagation through this model. It provides the inference functionality of the regular 
+        `yamnet <https://www.tensorflow.org/hub/tutorials/yamnet>`_. 
+
+        :param inputs: The waveform to be sliced and passed through the model for sound event recognition. It is expected to be of 
+            shape [time frame count] and of data type float32 in the range [-1,1].
+        :type inputs: :class:`tensorflow.Tensor`
+        :return: class_probabilities (:class:`tensorflow.Tensor`) - The probability for each slice to belong to each of the AudioSet 
+            classes. Shape == [slice count, class count]. For slicing and class count refere to the regular yamnet.
+        """
 
         # Create spectrogram
         waveform_padded = features_lib.pad_waveform(inputs, self.configuration)
@@ -122,10 +139,23 @@ class LayerWiseYamnet(tf.keras.Model):
         X = self.__dense__(X) # Logits
         class_probabilities = self.__activation__(X)
 
+        # Output
         return class_probabilities
 
-    def call_until_latent(self, waveform: np.array, layer_index: int) -> tf.Tensor:
-        
+    def call_until_layer(self, waveform: tf.Tensor, layer_index: int) -> tf.Tensor:
+        """Propagates the ``waveform`` through self up until the layer at index ``layer_index``.
+
+        :param waveform: The waveform to be sliced and passed through the model for sound event recognition. It is expected to be of 
+            shape [time frame count] and of data type float32 in the range [-1,1].
+        :type inputs: :class:`tensorflow.Tensor`
+        :param layer_index: The index of the layer up until which the ``waveform`` shall be propagated through self. This index shall 
+            be in the range [0,14). The layer at index ``layer_index`` is not evaluated.
+        :type layer_index: int
+        :return: X (:class:`tensorflow.Tensor`) - The latent representation before the layer at index ``layer_index``. Its shape depends
+            of the layer and can be looked up in the original yamnet 
+            `implementation <https://github.com/tensorflow/models/blob/master/research/audioset/yamnet/yamnet.py>`_.
+        """
+
         # Create spectrogram
         waveform_padded = features_lib.pad_waveform(waveform, self.configuration)
         _, X = features_lib.waveform_to_log_mel_spectrogram_patches(waveform_padded, self.configuration)
@@ -135,9 +165,24 @@ class LayerWiseYamnet(tf.keras.Model):
         for layer in self.__convolutional_layers__[:layer_index]:
             X = layer(X)
         
+        # Output
         return X
 
-    def call_from_latent(self, latent: tf.Tensor, layer_index) -> tf.Tensor:
+    def call_from_layer(self, latent: tf.Tensor, layer_index: int) -> tf.Tensor:
+        """Provides a continuation of the forward propagation executed by :py:meth:`call_until_layer`. It starts at the layer at index
+        ``layer_index`` and stops at the last layer of yamnet. 
+
+        :param latent: The representation of an input to the model right before the layer at index ``layer_index``. Its shape depends
+            of the layer and can be looked up in the original yamnet 
+            `implementation <https://github.com/tensorflow/models/blob/master/research/audioset/yamnet/yamnet.py>`_.
+        :type latent: :class:`tensorflow.Tensor`
+        :param layer_index: The index of the layer at which processing shall continue.
+        :type layer_index: int
+        :return: class_probabilities (:class:`tensorflow.Tensor`) - The probability for each slice to belong to each of the AudioSet 
+            classes. Shape == [slice count, class count]. For slicing and class count refere to the regular yamnet.
+        """
+        
+        # Propagate
         X = latent
         for layer in self.__convolutional_layers__[layer_index:]:
             X = layer(X)
@@ -145,28 +190,6 @@ class LayerWiseYamnet(tf.keras.Model):
         X = self.__dense__(X) # Logits
         class_probabilities = self.__activation__(X)
 
+        # Output
         return class_probabilities
 
-if __name__ == "__main__":
-    import soundfile as sf
-    from scipy.signal import decimate
-    
-
-    model = LayerWiseYamnet()
-    model.load_weights(file_path='src/latent_audio/plugins/yamnet/yamnet.h5')
-
-    wav_data, sr = sf.read("src/latent_audio/plugins/yamnet/WH0000_1270.wav", dtype=np.int16)
-    waveform = wav_data / 32768.0
-    waveform = waveform.astype('float32')
-    waveform = decimate(waveform, 3)
-    waveform = waveform[:(int)(0.05*len(waveform))]
-    yamnet = yamnet_lib.yamnet_frames_model(params.Params())
-    yamnet.load_weights('src/latent_audio/plugins/yamnet/yamnet.h5')
-    
-    for layer_index in range(14):
-        scores1 = model.call_from_latent(model.call_until_latent(waveform, layer_index=layer_index),layer_index=layer_index) 
-        
-        scores2, embeddings, spectrogram = yamnet(waveform)
-        print(np.sum((scores1-scores2)**2))
-    k=3
-    
