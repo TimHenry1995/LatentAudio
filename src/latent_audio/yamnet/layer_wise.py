@@ -1,6 +1,6 @@
 from latent_audio.plugins.yamnet import params, features as features_lib, yamnet as yamnet_lib
 import tensorflow as tf
-from typing import Tuple
+from typing import Tuple, Dict, Any
 import numpy as np
 
 class LayerWiseYamnet(tf.keras.Model):
@@ -8,47 +8,59 @@ class LayerWiseYamnet(tf.keras.Model):
     representation of a particular layer.
     """
 
-    class BatchNormalization(tf.keras.Model):
-
-        def __init__(self, name, configuration):
-            
-            # Super
-            super(LayerWiseYamnet.BatchNormalization, self).__init__()
-
-            # Attributes
-            self.__batch_normalization__ = tf.keras.layers.BatchNormalization(name=name, center=configuration.batchnorm_center, scale=configuration.batchnorm_scale, epsilon=configuration.batchnorm_epsilon)
-
-        def call(self, inputs):
-            return self.__batch_normalization__(inputs)
-
     class Convolution(tf.keras.Model):
+        """Provides an implementation of a convolution later with 2D convolution, batch normalization and ReLU activation.
 
-        def __init__(self, name, kernel_size: int, strides: int, filter_count:int, configuration):
+        :param convolution_kwargs: The keyword arguments for the convolutional layer, excluding name, use_bias and activation. These 
+            are managed internally. ``convolution_kwargs`` may for instance specify filters, kernel_size, strides and padding.
+        :type convolution_kwargs: Dict[str, Any]
+        :param batch_normalization_kwargs: The keyword arguments for the two batch normalization layers, excluding name.
+        :type batch_normalization_kwargs:  Dict[str, Any]
+        """
+
+        def __init__(self, name:str, convolution_kwargs: Dict[str, Any], batch_normalization_kwargs: Dict[str, Any]):
             
             # Super
             super(LayerWiseYamnet.Convolution, self).__init__()
 
             # Attributes
-            self.__convolution__ = tf.keras.layers.Conv2D(name='{}/conv'.format(name), filters=filter_count, kernel_size=kernel_size, strides=strides, padding=configuration.conv_padding, use_bias=False, activation=None)
-            self.__batch_normalization__ = LayerWiseYamnet.BatchNormalization(name='{}/conv/bn'.format(name), configuration=configuration)
+            self.__convolution__ = tf.keras.layers.Conv2D(name='{}/conv'.format(name), use_bias=False, activation=None, **convolution_kwargs)
+            self.__batch_normalization__ = tf.keras.layers.BatchNormalization(name='{}/conv/bn'.format(name), **batch_normalization_kwargs)
             self.__activation__ = tf.keras.layers.ReLU(name='{}/relu'.format(name))
 
         def call(self, inputs):
             return self.__activation__(self.__batch_normalization__(self.__convolution__(inputs)))
 
     class SeparableConvolution(tf.keras.Model):
+        """Provides an implementation for a convolutional layer that applies depth-wise 2D convolution, batch normalization and ReLu 
+        activation, followed by point-wise 2D convolution, batch normalization and ReLU activation.
+    
+        :param name: The name of the layer.
+        :type name: str
+        :param depth_wise_kernel_size: The size of convolutional filter for the depth-wise convolution. For point-wise convolution it 
+            is set to 1.
+        :type depth_wise_kernel_size: int
+        :param depth_wise_strides: The stride for the depth-wise convolution. For point-wise convolution it is set to 1.
+        :type depth_wise_strides: int
+        :param point_wise_filters: The number of filter for the point-wise convolution. For depth-wise convolution it is managed by
+            the depth_multiplier argument which is here fixed at 1.
+        :type point_wise_filters: int
+        :param padding: The padding applied to both convolution layers.
+        :type padding: str
+        :param batch_normalization_kwargs: The keyword arguments for the two batch normalization layers, excluding name.
+        :type batch_normalization_kwargs:  Dict[str, Any]"""
 
-        def __init__(self, name, kernel_size: int, strides: int, filter_count:int, configuration):
+        def __init__(self, name: str, depth_wise_kernel_size: int, depth_wise_strides: int, point_wise_filters: int, padding: str, batch_normalization_kwargs: Dict[str, Any]):
             
             # Super
             super(LayerWiseYamnet.SeparableConvolution, self).__init__()
 
             # Attributes
-            self.__depth_wise_convolution__ = tf.keras.layers.DepthwiseConv2D(name='{}/depthwise_conv'.format(name), kernel_size=kernel_size, strides=strides, depth_multiplier=1, padding=configuration.conv_padding, use_bias=False, activation=None)
-            self.__depth_wise_batch_normalization__ = LayerWiseYamnet.BatchNormalization(name='{}/depthwise_conv/bn'.format(name), configuration=configuration)
+            self.__depth_wise_convolution__ = tf.keras.layers.DepthwiseConv2D(name='{}/depthwise_conv'.format(name), kernel_size=depth_wise_kernel_size, strides=depth_wise_strides, depth_multiplier=1, use_bias=False, activation=None, padding=padding)
+            self.__depth_wise_batch_normalization__ = tf.keras.layers.BatchNormalization(name='{}/depthwise_conv/bn'.format(name), **batch_normalization_kwargs)
             self.__depth_wise_activation__ = tf.keras.layers.ReLU(name='{}/depthwise_conv/relu'.format(name))
-            self.__point_wise_convolution__ = tf.keras.layers.Conv2D(name='{}/pointwise_conv'.format(name), filters=filter_count, kernel_size=(1,1), strides=1, padding=configuration.conv_padding, use_bias=False, activation=None)
-            self.__point_wise_batch_normalization__ = LayerWiseYamnet.BatchNormalization(name='{}/pointwise_conv/bn'.format(name), configuration=configuration)
+            self.__point_wise_convolution__ = tf.keras.layers.Conv2D(name='{}/pointwise_conv'.format(name), kernel_size=(1,1), filters=point_wise_filters, strides=1, use_bias=False, activation=None, padding=padding)
+            self.__point_wise_batch_normalization__ = tf.keras.layers.BatchNormalization(name='{}/pointwise_conv/bn'.format(name), **batch_normalization_kwargs)
             self.__point_wise_activation__ = tf.keras.layers.ReLU(name='{}/pointwise_conv/relu'.format(name))
 
         def call(self, inputs):
@@ -66,21 +78,23 @@ class LayerWiseYamnet(tf.keras.Model):
         # Attributes
         self.__reshape__ = tf.keras.layers.Reshape((self.configuration.patch_frames, self.configuration.patch_bands, 1), input_shape=(self.configuration.patch_frames, self.configuration.patch_bands))
         
+        bn_kwargs = {'center': self.configuration.batchnorm_center, 'scale':self.configuration.batchnorm_scale, 'epsilon':self.configuration.batchnorm_epsilon}
+        padding = self.configuration.conv_padding
         self.__convolutional_layers__ = [
-            LayerWiseYamnet.Convolution(name='layer1', kernel_size=[3,3], strides=2, filter_count=32, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer2', kernel_size=[3,3], strides=1, filter_count=64, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer3', kernel_size=[3,3], strides=2, filter_count=128, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer4', kernel_size=[3,3], strides=1, filter_count=128, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer5', kernel_size=[3,3], strides=2, filter_count=256, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer6', kernel_size=[3,3], strides=1, filter_count=256, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer7', kernel_size=[3,3], strides=2, filter_count=512, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer8', kernel_size=[3,3], strides=1, filter_count=512, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer9', kernel_size=[3,3], strides=1, filter_count=512, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer10', kernel_size=[3,3], strides=1, filter_count=512, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer11', kernel_size=[3,3], strides=1, filter_count=512, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer12', kernel_size=[3,3], strides=1, filter_count=512, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer13', kernel_size=[3,3], strides=2, filter_count=1024, configuration=self.configuration),
-            LayerWiseYamnet.SeparableConvolution(name='layer14', kernel_size=[3,3], strides=1, filter_count=1024, configuration=self.configuration),
+            LayerWiseYamnet.Convolution(name='layer1', convolution_kwargs={'kernel_size':[3,3], 'strides':2, 'filters':32, 'padding':padding}, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer2', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=64, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer3', depth_wise_kernel_size=[3,3], depth_wise_strides=2, padding=padding, point_wise_filters=128, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer4', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=128, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer5', depth_wise_kernel_size=[3,3], depth_wise_strides=2, padding=padding, point_wise_filters=256, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer6', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=256, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer7', depth_wise_kernel_size=[3,3], depth_wise_strides=2, padding=padding, point_wise_filters=512, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer8', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=512, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer9', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=512, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer10', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=512, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer11', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=512, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer12', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=512, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer13', depth_wise_kernel_size=[3,3], depth_wise_strides=2, padding=padding, point_wise_filters=1024, batch_normalization_kwargs=bn_kwargs),
+            LayerWiseYamnet.SeparableConvolution(name='layer14', depth_wise_kernel_size=[3,3], depth_wise_strides=1, padding=padding, point_wise_filters=1024, batch_normalization_kwargs=bn_kwargs),
         ]
 
         self.__pooling__ = tf.keras.layers.GlobalAveragePooling2D()

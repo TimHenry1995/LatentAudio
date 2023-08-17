@@ -27,4 +27,4 @@ class TestLayerWiseYamnet(unittest.TestCase):
             self.assertEqual(first=tf.reduce_sum((probabilities_1-probabilities_2)**2).numpy(), second=0)
 
 if __name__ == '__main__':
-    TestLayerWiseYamnet().test_load()
+    TestLayerWiseYamnet().test_equivalence_to_regular_yamnet()
