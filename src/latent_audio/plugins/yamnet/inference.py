@@ -19,7 +19,7 @@ from __future__ import division, print_function
 import sys
 
 import numpy as np
-from scipy.signal import decimate
+import resampy
 import soundfile as sf
 import tensorflow as tf
 
@@ -32,8 +32,8 @@ def main(argv):
 
   params = yamnet_params.Params()
   yamnet = yamnet_model.yamnet_frames_model(params)
-  yamnet.load_weights('src/plugins/yamnet/yamnet.h5')
-  yamnet_classes = yamnet_model.class_names('src/plugins/yamnet/yamnet_class_map.csv')
+  yamnet.load_weights('yamnet.h5')
+  yamnet_classes = yamnet_model.class_names('yamnet_class_map.csv')
 
   for file_name in argv:
     # Decode the WAV file.
@@ -46,7 +46,7 @@ def main(argv):
     if len(waveform.shape) > 1:
       waveform = np.mean(waveform, axis=1)
     if sr != params.sample_rate:
-      waveform = decimate(waveform, 3)
+      waveform = resampy.resample(waveform, sr, params.sample_rate)
 
     # Predict YAMNet classes.
     scores, embeddings, spectrogram = yamnet(waveform)
@@ -61,4 +61,4 @@ def main(argv):
 
 
 if __name__ == '__main__':
-  main(["src/plugins/yamnet/WH0000_1270.wav"])
+  main(sys.argv[1:])
