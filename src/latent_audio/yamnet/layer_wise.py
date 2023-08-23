@@ -163,10 +163,10 @@ class LayerWiseYamnet(tf.keras.Model):
             shape [time frame count] and of data type float32 in the range [-1,1].
         :type inputs: :class:`tensorflow.Tensor`
         :param layer_index: The index of the layer up until which the ``waveform`` shall be propagated through self. This index shall 
-            be in the range [0,14). The layer at index ``layer_index`` is not evaluated.
+            be in the range [0,14). The layer at index ``layer_index`` is evaluated.
         :type layer_index: int
-        :return: X (:class:`tensorflow.Tensor`) - The latent representation before the layer at index ``layer_index``. Its shape depends
-            of the layer and can be looked up in the original yamnet 
+        :return: X (:class:`tensorflow.Tensor`) - The latent representation right after the layer at index ``layer_index``. Its shape 
+            depends on the layer and can be looked up in the original yamnet 
             `implementation <https://github.com/tensorflow/models/blob/master/research/audioset/yamnet/yamnet.py>`_.
         """
 
@@ -176,7 +176,7 @@ class LayerWiseYamnet(tf.keras.Model):
 
         # Pass through layers
         X = self.__reshape__(X)
-        for layer in self.__convolutional_layers__[:layer_index]:
+        for layer in self.__convolutional_layers__[:layer_index+1]:
             X = layer(X)
         
         # Output

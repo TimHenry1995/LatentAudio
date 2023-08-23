@@ -19,7 +19,7 @@ class TestLayerWiseYamnet(unittest.TestCase):
         yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
         
         for layer_index in range(14):
-            probabilities_1 = layer_wise_yamnet.call_from_layer(layer_wise_yamnet.call_until_layer(waveform, layer_index=layer_index),layer_index=layer_index) 
+            probabilities_1 = layer_wise_yamnet.call_from_layer(layer_wise_yamnet.call_until_layer(waveform, layer_index=layer_index),layer_index=layer_index+1) 
             probabilities_2, _, _ = yamnet(waveform)
 
             # Evaluate
