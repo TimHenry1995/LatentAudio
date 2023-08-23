@@ -7,7 +7,8 @@ __pycache__/
 *.so
 
 # Data
-data/latent
+data/pre-processed
+data/sound slices for humans
 
 # Mac OSX
 .DS_Store
