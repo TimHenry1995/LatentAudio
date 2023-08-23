@@ -8,25 +8,36 @@ from sklearn.manifold import TSNE
 import os, numpy as np, matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score
 from sklearn.neighbors import KNeighborsClassifier
+plt.rcParams["font.family"] = "Times New Roman"
+from sklearn.model_selection import cross_val_score
 
 # Configuration
+factor_name = 'Material' # or alternatively 'Action'
 data_folder = os.path.join('data','pre-processed')
-sample_size = 500 # The number of instances to be visualized
+sample_size = 1012 # The number of instances to be visualized
 np.random.seed(42)
 label_to_material = ['W','M','G','S','C','P']
 label_to_action = ['T','R','D','W']
+if factor_name == 'Material': 
+    label_to_factor = label_to_material
+    factor_index = 0
+else: 
+    label_to_factor = label_to_action
+    factor_index = 1
+
+np.random.seed(42) # Reproducability
 
 # Load layer indices
 layer_indices = []
 for folder_name in os.listdir(data_folder):
     if 'Layer' in folder_name: layer_indices.append((int)(folder_name.split(" ")[1])) # The word after the first space is assumed to be the layer number
 layer_indices.sort()
-
+layer_indices = [0,6,13]
 # For each layer
 explained_variances = [None] * len(layer_indices)
 projections = [None] * len(layer_indices)
 Ys = [None] * len(layer_indices)
-Y_hats = [None] * len(layer_indices)
+KNN_scores = [None] * len(layer_indices)
 for l, layer_index in enumerate(layer_indices):
     # Convenience variables
     layer_name = f"Layer {layer_index}"
@@ -54,41 +65,39 @@ for l, layer_index in enumerate(layer_indices):
     
     # Fit KNN
     KNN = KNeighborsClassifier(n_neighbors=3)
-    KNN.fit(X[:(int)(0.8*X.shape[0]),:], Y[:(int)(0.8*X.shape[0]),:])
-    Y_hats[l] = KNN.predict(X[(int)(0.8*X.shape[0]):,:])
-
+    KNN_scores[l] = cross_val_score(KNN, X, Y[:,factor_index], cv=5)
+    
     # Fit t-SNE
     tsne = TSNE()
     projections[l] = tsne.fit_transform(X)
     
 # Plot t-SNE
-plt.figure(figsize=(10,8)); plt.suptitle("Standard Material Separation")
+plt.figure(figsize=(10,3))
+plt.suptitle(f"T-Distributed Stochastic Neighbor Embeddings on {factor_name}s")
 p=0 # subplot index
 for l, layer_index in {layer_indices.index(element): element for element in [0,6,13]}.items():
     
-    plt.subplot(3,3,p+1); p+= 1
+    plt.subplot(1,3,p+1); p+= 1
     # Iterate classes of materials
-    material_labels = set(list(np.reshape(Ys[l][:,1], [-1])))
-    for label in material_labels:
-        label_indices = Ys[l][:,1] == label
-        plt.scatter(projections[l][label_indices,0], projections[l][label_indices,1])
+    factor_labels = set(list(np.reshape(Ys[l][:,1], [-1])))
+    for label in factor_labels:
+        label_indices = Ys[l][:, factor_index] == label
+        plt.scatter(projections[l][label_indices,0], projections[l][label_indices,1], marker='.')
+        plt.xlabel(f'Dimension 1\nLayer {layer_index}')
     if l == 0: 
-        plt.legend([label_to_action[label] for label in material_labels])
-        plt.ylabel('TSNE\n\n\n')
+        plt.legend([label_to_factor[label] for label in factor_labels])
+        plt.ylabel('Dimension 2')
     plt.xticks([]); plt.yticks([])
 
-# Evaluate KNN
-material_accuracies = [None] * len(layer_indices)
-for l, layer_index in enumerate(layer_indices):
-    material_accuracies[l] = accuracy_score(Ys[l][(int)(0.8*X.shape[0]):,1], Y_hats[l][:,1]) # Materials are at index 0
-
 # Plot KNN
-plt.subplot(3,1,2)
-plt.bar([str(i) for i in layer_indices], material_accuracies)
-plt.ylim(0,1); plt.ylabel('KNN\nAccuray')
+accuracy_means = KNN_scores
+plt.figure(figsize=(10,5)); plt.title(f"K-Nearest Neighbor Classification on {factor_name}s")
+plt.bar([str(i) for i in layer_indices], accuracies)
+plt.ylim(0,1); plt.ylabel('Accuray'); plt.xlabel('Layer')
+
 
 # Plot PCA
-plt.subplot(3,1,3)
+plt.figure(figsize=(10,5)); plt.title("Principal Component Analysis")
 for l, layer_index in enumerate(layer_indices):
     R = 0
     plt.gca().set_prop_cycle(None)
@@ -98,5 +107,5 @@ for l, layer_index in enumerate(layer_indices):
     
     plt.ylim(0,1)
 
-plt.xlabel('Layer'); plt.ylabel('PCA\nExplained Variance')
+plt.ylabel('Explained Variance'); plt.xlabel('Layer')
 plt.show()

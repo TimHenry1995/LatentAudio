@@ -17,7 +17,7 @@ raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first
 for file_name in reversed(raw_file_names):
     if '.wav' not in file_name: raw_file_names.remove(file_name)
 
-inspection_layer_index = 13 # Has to be in range [0,13]
+inspection_layer_index = 12 # Has to be in range [0,13]
 pre_processed_folder_path = os.path.join('data','pre-processed',f'Layer {inspection_layer_index}')
 
 # This line deletes current pre-processed files
@@ -36,7 +36,7 @@ for raw_file_name in raw_file_names:
     # Load .wav file
     waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name), dtype=np.int16)
     max = np.max(waveform)
-    waveform = waveform[:(int)(0.05*len(waveform))]
+    #waveform = waveform[:(int)(0.05*len(waveform))]
 
     # Adjust format
     waveform = decimate(waveform, 3) # Relies on assumption that sampling rate of .wav file is 3x the sampling rate of yamnet
