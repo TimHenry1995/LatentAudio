@@ -1,6 +1,7 @@
 """This module is used to explore the output of the pre_process script. It takes the latent representations of indicated layers and
 uses principal component analaysos (PCA) to reduce the number of dimensions such that it is manageable for t-distributed stochastic
-neighbor embeddings (t-SNE). It then applies t-SNE to visualize the classes of actions and the classes of materials.
+neighbor embeddings (t-SNE). It then applies t-SNE to visualize the classes of actions and the classes of materials. It also fits 
+K-nearest Neighbor to each layer to predict the material or action labels and creates a layerwise boxplot for that.
 """
 
 from sklearn.decomposition import PCA
@@ -68,6 +69,7 @@ for layer_index in layer_indices:
     projections[layer_index] = tsne.fit_transform(X)
 
 # Plot KNN and TSE for both factors
+if not os.path.exists(figure_output_folder): os.makedirs(figure_output_folder)
 for factor_index, factor_name, label_to_factor in zip([0,1], ['Material','Action'], [label_to_material, label_to_action]):
 
     # Plot KNN
