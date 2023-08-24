@@ -54,7 +54,7 @@ for layer_index in layer_indices:
     Ys[layer_index] = Y
 
     # Fit PCA
-    pca = PCA(n_components=50)
+    pca = PCA(n_components=0.8)
     pca.fit(X)
     explained_variances[layer_index] = pca.explained_variance_ratio_
     X = pca.transform(X)
