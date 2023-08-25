@@ -16,42 +16,40 @@ raw_folder_path = os.path.join('data','raw audio')
 raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
 for file_name in reversed(raw_file_names):
     if '.wav' not in file_name: raw_file_names.remove(file_name)
-
-inspection_layer_index = 12 # Has to be in range [0,13]
-pre_processed_folder_path = os.path.join('data','pre-processed',f'Layer {inspection_layer_index}')
-
-# This line deletes current pre-processed files
-if os.path.exists(pre_processed_folder_path): shutil.rmtree(pre_processed_folder_path)
-os.makedirs(pre_processed_folder_path)
-
+pre_processed_path = os.path.join('data','pre-processed','All PCA dimensions')
 yamnet = ylw.LayerWiseYamnet()
 yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
 
 material_to_label = {'W':0,'M':1,'G':2,'S':3,'C':4,'P':5}
 action_to_label = {'T':0,'R':1,'D':2,'W':3}
 
-# Preprocess all files
-for raw_file_name in raw_file_names:
+for inspection_layer_index in range(14):
+    layer_path = os.path.join(pre_processed_path,f'Layer {inspection_layer_index}')
 
-    # Load .wav file
-    waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name), dtype=np.int16)
-    max = np.max(waveform)
-    #waveform = waveform[:(int)(0.05*len(waveform))]
+    # This line deletes current pre-processed files
+    if os.path.exists(layer_path): shutil.rmtree(layer_path)
+    os.makedirs(layer_path)
 
-    # Adjust format
-    waveform = decimate(waveform, 3) # Relies on assumption that sampling rate of .wav file is 3x the sampling rate of yamnet
-    waveform = waveform / max#np.max(waveform)#np.iinfo(np.int16).max
-    waveform = waveform.astype('float32')
-    
-    # Pass through yamnet up until target layer
-    latent = yamnet.call_until_layer(waveform=waveform, layer_index=inspection_layer_index).numpy()
-    
-    # Create y
-    material = raw_file_name[0]; action = raw_file_name[1]
-    y = np.array([material_to_label[material], action_to_label[action]])
+    # Preprocess all files
+    for raw_file_name in raw_file_names:
 
-    # Save
-    for s, slice in enumerate(latent):
-        np.save(os.path.join(pre_processed_folder_path, f"{raw_file_name[:-4]}_X_{s}.npy"), np.reshape(slice,[-1])) 
-        np.save(os.path.join(pre_processed_folder_path, f"{raw_file_name[:-4]}_Y_{s}.npy"), y) 
+        # Load .wav file
+        waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name), dtype=np.int16)
+        max = np.max(waveform)
         
+        # Adjust format
+        waveform = waveform / max#np.max(waveform)#np.iinfo(np.int16).max
+        waveform = waveform.astype('float32')
+        
+        # Pass through yamnet up until target layer
+        latent = yamnet.call_until_layer(waveform=waveform, layer_index=inspection_layer_index).numpy()
+        
+        # Create y
+        material = raw_file_name[0]; action = raw_file_name[1]
+        y = np.array([material_to_label[material], action_to_label[action]])
+
+        # Save
+        for s, slice in enumerate(latent):
+            np.save(os.path.join(layer_path, f"{raw_file_name[:-4]}_X_{s}.npy"), np.reshape(slice,[-1])) 
+            np.save(os.path.join(layer_path, f"{raw_file_name[:-4]}_Y_{s}.npy"), y) 
+            

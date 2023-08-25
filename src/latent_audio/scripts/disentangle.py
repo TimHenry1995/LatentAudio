@@ -4,15 +4,20 @@ is preprocessed by pre_process.py."""
 from typing import List, Any
 from gyoza.modelling import data_iterators as gmd, flow_layers as mfl, standard_layers as msl, masks as gmm
 import os, numpy as np
+import tensorflow as tf, matplotlib.pyplot as plt
 
 # Configuration
-inspection_layer_index = 3
-data_path = os.path.join('data','pre-processed',f"Layer {inspection_layer_index}")
-batch_size = 32
+inspection_layer_index = 8
+data_path = os.path.join('data','pre-processed','64 PCA dimensions',f"Layer {inspection_layer_index}")
+batch_size = 512
 file_names = os.listdir(data_path)
 for file_name in reversed(file_names):
     if '.npy' not in file_name: file_names.remove(file_name)
-
+np.random.seed(42) # Answer to everything
+stage_count = 5
+epoch_count = 2
+batch_count = 2
+model_save_path = os.path.join('models', f'{stage_count} stages {epoch_count} epochs {batch_count} batches.h5')
 ## Create data iterator
 # Load file names
 x_file_names = [None] * (len(file_names) // 2)
@@ -60,7 +65,7 @@ def create_network(Z_sample: np.ndarray, stage_count: int, dimensions_per_factor
     """
 
     # Set up the coupling functions and masks for the coupling layers
-    dimensionality = Z_sample.shape[1]
+    dimensionality = Z_sample.shape[-1]
     layers = [None] * (6*stage_count)
     for i in range(stage_count):
         layers[6*i] = mfl.Reflection(axes=[1], shape=[dimensionality], reflection_count=8)
@@ -87,7 +92,7 @@ def create_network(Z_sample: np.ndarray, stage_count: int, dimensions_per_factor
     return network
 
 # Take a few batches, to ensure enough similar pairs are found for dimensionality estimation
-sample_count = 10
+'''sample_count = 10
 Z_ab_sample_large = [None] * sample_count; Y_ab_sample_large = [None] * sample_count
 for i in range(sample_count):
     Z_ab_sample_large[i], Y_ab_sample_large[i] = next(iterator)
@@ -96,10 +101,29 @@ Y_ab_sample_large = np.concatenate(Y_ab_sample_large, axis=0)
 
 # Estimate dimensionality per factor
 dimensions_per_factor = mfl.SupervisedFactorNetwork.estimate_factor_dimensionalities(Z_ab=Z_ab_sample_large, Y_ab=Y_ab_sample_large)
-
-flow_network = create_network(Z_sample=Z_ab_sample, stage_count=5, dimensions_per_factor=[4,5,6])
+'''
+dimensions_per_factor = [32,16,16]
+flow_network = create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
 
 # Calibrate
 flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.005), loss=tf.keras.losses.MeanSquaredError())
-epoch_loss_means, epoch_loss_standard_deviations = flow_network.fit(epoch_count=2, batch_count=3, iterator=iterator)
+epoch_loss_means, epoch_loss_standard_deviations = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=iterator)
 plt.figure(figsize=(10,3)); plt.title('Loss Trajectory'); plt.plot(epoch_loss_means); plt.xlabel('Epoch'); plt.ylabel('Loss'); plt.show()
+
+# Save existing model
+path = "example_model.h5"
+flow_network.save_weights(model_save_path)
+new_model = create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
+
+# Load weights
+new_model.load_weights(model_save_path); 
+
+# Compare
+print("The saved and the loaded model weights produce a prediction difference equal to", tf.reduce_sum((flow_network(Z_ab_sample[:,0,:])-new_model(Z_ab_sample[:,0,:]))**2))
+del new_model
+
+# Feed in sound from different materials, same action and show that change in material dimensions is larger than in action dimensions and vice versa
+def evaluate_network(flow_network:  mfl.SupervisedFactorNetwork, data_path: str):
+    """Evaluates the flow network by feeding in sounds that differ along one factor and are constant along the other factor.
+    It then shows to what extent the flow network output changes along each factor"""
+    pass

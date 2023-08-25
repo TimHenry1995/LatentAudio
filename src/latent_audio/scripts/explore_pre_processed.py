@@ -13,12 +13,14 @@ plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
 from sklearn.model_selection import cross_val_score
 from scipy import stats
-# Configuration
+from latent_audio import utilities as utl
 
-data_folder = os.path.join('data','pre-processed')
+# Configuration
+data_folder = os.path.join('data','pre-processed','All PCA dimensions')
 figure_output_folder = os.path.join('plots','data exploration')
 sample_size = 2048 # The number of instances to be visualized
 cross_validation_folds = 10
+pca_dimensionality = 64
 np.random.seed(42)
 label_to_material = ['W','M','G','S','C','P']
 label_to_action = ['T','R','D','W']
@@ -36,26 +38,12 @@ KNN_accuracies = {}
 Ys = {}
 
 for layer_index in layer_indices:
-    # Convenience variables
-    layer_name = f"Layer {layer_index}"
-
     # Load sample
-    x_file_name_count = np.sum([1 if "_X_" in file_name else 0 for file_name in os.listdir(os.path.join(data_folder, layer_name))])
-    x_file_names = [None] * x_file_name_count
-    i = 0
-    for file_name in os.listdir(os.path.join(data_folder, layer_name)):
-        if '_X_' in file_name:
-            x_file_names[i] = file_name; i+= 1
-
-    X = [None] * sample_size; Y = [None] * sample_size
-    for i, j in enumerate(np.random.randint(low=0, high=x_file_name_count, size=sample_size)):
-        x_path = os.path.join(data_folder, layer_name, str(x_file_names[j]))
-        X[i] = np.load(x_path)[np.newaxis,:]; Y[i] = np.load(x_path.replace('_X_','_Y_'))[np.newaxis,:]
-    X = np.concatenate(X, axis=0); Y = np.concatenate(Y, axis=0)
+    X, Y = utl.load_latent_sample(data_folder=os.path.join(data_folder, f"Layer {layer_index}"), sample_size=sample_size)
     Ys[layer_index] = Y
 
     # Fit PCA
-    pca = PCA(n_components=50)
+    pca = PCA(n_components=pca_dimensionality)
     pca.fit(X)
     explained_variances[layer_index] = pca.explained_variance_ratio_
     X = pca.transform(X)
@@ -132,5 +120,5 @@ for layer_index in layer_indices:
     plt.ylim(0,1)
 
 plt.ylabel('Explained Variance'); plt.xlabel('Layer')
-plt.savefig(os.path.join(figure_output_folder, f"PCA"))
+plt.savefig(os.path.join(figure_output_folder, f"PCA {pca_dimensionality} dimensions"))
 plt.show()
