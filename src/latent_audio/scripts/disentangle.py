@@ -86,7 +86,7 @@ def create_network(Z_sample: np.ndarray, stage_count: int, dimensions_per_factor
     # Outputs
     return network
 
-# Take a few batches, to ensure enough similar pairs are found
+# Take a few batches, to ensure enough similar pairs are found for dimensionality estimation
 sample_count = 10
 Z_ab_sample_large = [None] * sample_count; Y_ab_sample_large = [None] * sample_count
 for i in range(sample_count):
@@ -94,6 +94,7 @@ for i in range(sample_count):
 Z_ab_sample_large = np.concatenate(Z_ab_sample_large, axis=0)
 Y_ab_sample_large = np.concatenate(Y_ab_sample_large, axis=0)
 
+# Estimate dimensionality per factor
 dimensions_per_factor = mfl.SupervisedFactorNetwork.estimate_factor_dimensionalities(Z_ab=Z_ab_sample_large, Y_ab=Y_ab_sample_large)
 
 flow_network = create_network(Z_sample=Z_ab_sample, stage_count=5, dimensions_per_factor=[4,5,6])
