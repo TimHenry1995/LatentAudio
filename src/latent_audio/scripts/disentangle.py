@@ -74,15 +74,15 @@ def load_iterators(data_path: str, materials_to_drop: List[int], actions_to_drop
         Z = Z[Y[:,1] != a,:]; Y = Y[Y[:,1] != a,:]
 
     # standardize
-    Z=(Z-np.mean(Z,axis=0))/np.std(Z,axis=0) 
+    #Z=(Z-np.mean(Z,axis=0))/np.std(Z,axis=0) 
 
     # Train test split
     Z_train, Z_test, Y_train, Y_test = train_test_split(Z,Y, test_size=0.33, random_state=53)
 
     # Fit PCA
-    pca = PCA(n_components=16)
-    pca.fit(Z_test)
-    Z_test = pca.transform(Z_test); Z_train = pca.transform(Z_train)
+    #pca = PCA(n_components=16)
+    #pca.fit(Z_test)
+    #Z_test = pca.transform(Z_test); Z_train = pca.transform(Z_train)
 
     # Create the iterators
     def similarity_function(Y_a: np.ndarray, Y_b: np.ndarray) -> np.ndarray:
@@ -101,13 +101,12 @@ if __name__ == "__main__":
 
     # Configuration
     inspection_layer_index = 8
-    data_path = os.path.join('data','pre-processed','16 PCA dimensions all in 1 file','Layer 8')
     batch_size = 512
     np.random.seed(850)
     tf.keras.utils.set_random_seed(125)
     random.seed(946)
     stage_count = 10
-    epoch_count = 100
+    epoch_count = 10
     dimensions_per_factor = [14,1,1]
     materials_to_keep = [1,4]; actions_to_keep = [0,1]
     materials_to_drop = list(range(6))
@@ -116,7 +115,8 @@ if __name__ == "__main__":
     for a in reversed(actions_to_keep): actions_to_drop.remove(a)
     m_string = ",".join(str(m) for m in materials_to_keep)
     a_string = ",".join(str(a) for a in actions_to_keep)
-    model_save_path = os.path.join('models', f'Layer {inspection_layer_index}')
+    data_path = os.path.join('data','pre-processed',f'{np.sum(dimensions_per_factor)} PCA dimensions all in 1 file',f'Layer {inspection_layer_index}')
+    model_save_path = os.path.join('models', f'Layer {inspection_layer_index}', f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
     plot_save_path = os.path.join('plots','disentangle', f'Layer {inspection_layer_index}')
     if not os.path.exists(model_save_path): os.makedirs(model_save_path)
     if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
@@ -129,7 +129,8 @@ if __name__ == "__main__":
 
     # Create network
     flow_network = create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
-    flow_network.load_weights(os.path.join(model_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5'))
+    if os.path.exists(model_save_path): flow_network.load_weights(model_save_path)
+    
     # Calibrate
     flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001))
     epoch_loss_means, epoch_loss_standard_deviations, epoch_loss_means_validate, epoch_loss_standard_deviations_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
@@ -139,4 +140,4 @@ if __name__ == "__main__":
     plt.savefig(os.path.join(plot_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Loss.png')); plt.show()
 
     # Save existing model
-    flow_network.save_weights(os.path.join(model_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5'))
+    flow_network.save_weights(model_save_path)

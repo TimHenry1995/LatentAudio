@@ -125,13 +125,25 @@ def compute_paired_differences(flow_network: mfl.SupervisedFactorNetwork, Z_tild
     # Output
     return delta
 
+def latent_transfer(data_folder_path: str, materials: List[int], actions: List[int], standard_scaler: Callable, full_pca: Callable, flow_network: Callable, yamnet_from_layer: Callable) -> None:
+
+    # Load a sample of , scale it, transform full pca
+    # pass the top 16 dims through flow net
+    # change factor
+    # invert flow net
+    # replace top 16 dims
+    # invert full pca, invert scaler
+    # continue processing through yamnet
+    # get a class distribution out and match that against some reference
+    pass
+
 # Configuration
 inspection_layer_index = 8
 data_path = os.path.join('data','pre-processed','16 PCA dimensions all in 1 file','Layer 8')
 batch_size = 512
 np.random.seed(850)
 stage_count = 10
-epoch_count = 100
+epoch_count = 10
 dimensions_per_factor = [14,1,1]
 materials_to_keep = [1,4]; actions_to_keep = [0,1]
 materials_to_drop = list(range(6))
@@ -170,17 +182,6 @@ with open(os.path.join(model_save_path, 'Standard Scaler.pkl'), 'rb') as file_ha
 with open(os.path.join(model_save_path, f'{np.sum(dimensions_per_factor)} PCA.pkl'), 'rb') as file_handle:
     pca = pkl.load(file_handle)
     
-create a new iterator
-load scaler, full pca
-load instance, scale it, transform full pca
-pass the top 16 dims through flow net
-change factor
-invert flow net
-replace top 16 dims
-invert full pca, invert scaler
-continue processing through yamnet
-get a class distribution out and match that against some reference
-
 # Need the standard scaler from all dims
 # Need the pca from all dims to current dims
 # Need to invert both transforms
