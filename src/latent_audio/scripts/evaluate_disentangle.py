@@ -79,7 +79,7 @@ def scatter_plot(flow_network, Z, Y, material_labels, action_labels, plot_save_p
     
     # Remove other axes
     plt.subplot(2,4,5); plt.axis('off'); plt.subplot(2,4,7); plt.axis('off'); 
-    plt.savefig(os.path.join(plot_save_path, "Scatterplots.png"))
+    plt.savefig(os.path.join(plot_save_path, f"materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Scatterplots.png"))
     plt.show()
 
 def evaluate_factor_sensitivity(flow_network: mfl.SupervisedFactorNetwork, Z_tilde_to_semantic: Callable, iterator: Callable, sample_size: int, dimensions_per_factor: List[int], plot_save_path: str) -> None:
@@ -127,11 +127,11 @@ def compute_paired_differences(flow_network: mfl.SupervisedFactorNetwork, Z_tild
 
 # Configuration
 inspection_layer_index = 8
-data_path = os.path.join('data','pre-processed','64 PCA dimensions all in 1 file','Layer 8')
+data_path = os.path.join('data','pre-processed','16 PCA dimensions all in 1 file','Layer 8')
 batch_size = 512
 np.random.seed(850)
 stage_count = 10
-epoch_count = 150
+epoch_count = 100
 dimensions_per_factor = [14,1,1]
 materials_to_keep = [1,4]; actions_to_keep = [0,1]
 materials_to_drop = list(range(6))
@@ -157,18 +157,34 @@ flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage
 flow_network.load_weights(os.path.join(model_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5'))
 
 # Evaluate
-#scatter_plot(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=plot_save_path)
+scatter_plot(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=plot_save_path)
 
 with open(os.path.join(model_save_path, 'Standard Scaler.pkl'), 'rb') as file_handle:
     scaler = pkl.load(file_handle)
-with open(os.path.join(model_save_path, f'PCA {np.sum(dimensions_per_factor)}.pkl', 'rb')) as file_handle:
+with open(os.path.join(model_save_path, f'PCA {np.sum(dimensions_per_factor)}.pkl'), 'rb') as file_handle:
     pca = pkl.load(file_handle)
 '''
 yamnet_second_half = lyl.LayerWiseYamnet()
+with open(os.path.join(model_save_path, 'Standard Scaler.pkl'), 'rb') as file_handle:
+    scaler = pkl.load(file_handle)
+with open(os.path.join(model_save_path, f'{np.sum(dimensions_per_factor)} PCA.pkl'), 'rb') as file_handle:
+    pca = pkl.load(file_handle)
+    
+create a new iterator
+load scaler, full pca
+load instance, scale it, transform full pca
+pass the top 16 dims through flow net
+change factor
+invert flow net
+replace top 16 dims
+invert full pca, invert scaler
+continue processing through yamnet
+get a class distribution out and match that against some reference
+
 # Need the standard scaler from all dims
 # Need the pca from all dims to current dims
 # Need to invert both transforms
-Z_tilde_to_semantic = lambda x: yamnet_second_half.call_from_layer(latent: x, layer_index=inspection_layer_index)
+Z_tilde_to_semantic = lambda x: yamnet_second_half.call_from_layer(latent: scaler.inverse_transform(pca.inverse_transform(x)), layer_index=inspection_layer_index)
 evaluate_factor_sensitivity(flow_network=flow_network, latent_to_semantic=latent_to_semantic, iterator=test_iterator, sample_size=500, dimensions_per_factor=dimensions_per_factor, plot_save_path=plot_save_path)
 '''
 k=3

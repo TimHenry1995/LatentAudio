@@ -107,7 +107,7 @@ if __name__ == "__main__":
     tf.keras.utils.set_random_seed(125)
     random.seed(946)
     stage_count = 10
-    epoch_count = 50
+    epoch_count = 100
     dimensions_per_factor = [14,1,1]
     materials_to_keep = [1,4]; actions_to_keep = [0,1]
     materials_to_drop = list(range(6))
@@ -122,19 +122,19 @@ if __name__ == "__main__":
     if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
 
     # Load data iterators
-    train_iterator, test_iterator, batch_count,_,_,_,_ = load_iterators(data_path=data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
+    train_iterator, test_iterator, batch_count,_,Z_test,_,Y_test = load_iterators(data_path=data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
     Z_ab_sample, Y_ab_sample = next(train_iterator) # Sample
     
-    print("The data is fed to the model in batches of shape:\n","Z: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_sample: (instance count, factor count): \t', Y_ab_sample.shape)
+    print("The data is fed to the model in batches of shape:\n","Z_ab_sample: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_ab_sample: (instance count, factor count): \t', Y_ab_sample.shape)
 
     # Create network
     flow_network = create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
-
+    flow_network.load_weights(os.path.join(model_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5'))
     # Calibrate
     flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001))
     epoch_loss_means, epoch_loss_standard_deviations, epoch_loss_means_validate, epoch_loss_standard_deviations_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
-    plt.figure(figsize=(10,3)); plt.title('Loss Trajectory');
-    plt.plot(epoch_loss_means); plt.plot(epoch_loss_means_validate);
+    plt.figure(figsize=(10,3)); plt.title('Loss Trajectory')
+    plt.plot(epoch_loss_means); plt.plot(epoch_loss_means_validate)
     plt.xlabel('Epoch'); plt.ylabel('Loss')
     plt.savefig(os.path.join(plot_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Loss.png')); plt.show()
 
