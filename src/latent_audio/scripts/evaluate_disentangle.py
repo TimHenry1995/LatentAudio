@@ -127,25 +127,148 @@ def compute_paired_differences(flow_network: mfl.SupervisedFactorNetwork, Z_tild
 
 def latent_transfer(data_folder_path: str, materials: List[int], actions: List[int], standard_scaler: Callable, full_pca: Callable, flow_network: Callable, yamnet_from_layer: Callable) -> None:
 
-    # Load a sample of , scale it, transform full pca
-    # pass the top 16 dims through flow net
-    # change factor
+    # Load a sample of even size from yamnets latent space 
+     
+    # Apply standard scaler and full pca
+
+    # Pass the top few dimensions through flow net
+
+    # Swap the material and 
     # invert flow net
     # replace top 16 dims
     # invert full pca, invert scaler
     # continue processing through yamnet
     # get a class distribution out and match that against some reference
+    
+    # m1 a1
+    # m2 a2
+    # x_a, x_b  ss  sd  ds  dd
+    # m1a1 m1a1 x
+    # m1a1 m1a2     x
+    # m1a1 m2a1         x
+    # m1a1 m2a2             x
+    # m1a2 m1a1     x
+    # m1a2 m1a2 x
+    # m1a2 m2a1             x
+    # m1a2 m2a2         x
+    # m2a1 m1a1         x
+    # m2a1 m1a2             x
+    # m2a1 m2a1 x
+    # m2a1 m2a2     x
+    # m2a2 m1a1             x
+    # m2a2 m1a2         x
+    # m2a2 m2a1     x
+    # m2a2 m2a2 x
     pass
+
+def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tuple[float, float], manifold_function: Callable, manifold_name:str, layer_steps: List[int], step_titles: List[str]):
+    """Plots for each layer (or rather step of consecutive layers) the contribution to the data transformation. The plot is strucutred into three rows.
+    The first row shows a stacked bar chart whose bottom segment is the contribution due to affine transformation and the top segment is the contribution
+    due to higher order transformation. To better understand the mechanisms behind these contributions there is a pictogram in the bottom row for the
+    actual affine transformation and in the middle row for the remaining higher order part. This separation is done to understand the complexity of the
+    transformation, whereby affine is considered simple and higher order is considered complex. The decomposition into affine and higher order is obtained
+    by means of a first order `Maclaurin series <https://en.wikipedia.org/wiki/Taylor_series#Taylor_series_in_several_variables>`_.
+
+    :param network: The network whose transfromation shall be visualized. It is expecetd to map 1 dimensional manifolds from the real 2-dimensional
+      plane to the real 2-dimensional plane.
+    :type network: :class:`gyoza.modelling.flow_layers.SequentialFlowNetwork`
+    :param s_range: The lower and upper bounds for the position along the manifold, respectively.
+    :type s_range: Tuple[float, float]
+    :param manifold_function: A function that maps from position along manifold to coordinates on the manifold in the real two dimensional plane.
+    :type manifold_function: :class:`Callable`
+    :param manifold_name: The name of the manifold used for the figure title.
+    :type manifold_name: str
+    :param layer_steps: A list of steps across layers of the ``network``. If, for instance, the network has 7 layers and visualization shall be done for
+      after the 1., 3. and 7, then ``layer_steps`` shall be set to [1,3,7]. The minimum entry shall be 1, then maximum entry shall be the number of layers
+      in ``network`` and all entries shall be strictly increasing.
+    :type layer_steps: List[int]
+    :param step_titles: The titles associated with each step in ``layer_steps``. Used as titles in the figure.
+    :type step_titles: List[str]
+    """
+
+    # Prepare plot
+    #plt.figure(figsize=(12,3.5));
+    layer_steps = [0] + layer_steps
+    K = len(step_titles)
+    fig, axs = plt.subplots(3, 1+K, figsize=(0.8+K,5), gridspec_kw={'height_ratios': [2,1,1], 'width_ratios':[0.3]+[1]*K})
+    plt.suptitle(rf'Contribution per Layer on ${manifold_name}$')
+
+    # Sample from s range
+    S = np.linspace(s_range[0], s_range[1], len(gum.color_palette), dtype=tf.keras.backend.floatx())
+    z_1, z_2 = manifold_function(S); Z = np.concatenate([z_1[:, np.newaxis], z_2[:, np.newaxis]], axis=1)
+    max_bar_height = 0
+
+    # Plot annotations on left
+    gray = [0.8,0.8,0.8]
+    #plt.subplot(3,1+K,1); plt.axis('off')
+    plt.subplot(3,1+K,1+K+1); plt.bar([''],[1], color=gray, edgecolor='black', hatch='oo'); plt.ylim(0,1); plt.xticks([]); plt.yticks([]); plt.ylabel('Higher Order')
+    plt.subplot(3,1+K,2*(1+K)+1); plt.bar([''],[1], color=gray, edgecolor='black', hatch='///'); plt.ylim(0,1); plt.xticks([]); plt.yticks([]); plt.ylabel('Affine')
+
+    # Iterate layers
+    for k in range(1, len(layer_steps)):
+
+        # Set up 1st order Maclaurin decomposition https://en.wikipedia.org/wiki/Taylor_series#Taylor_series_in_several_variables
+        # Z_tilde ~= layer(0) + J(0) * Z, where J(0) is the jacobian w.r.t input evaluated at the origin
+        origin = tf.Variable(tf.zeros([1] + list(Z[0].shape), dtype=tf.keras.backend.floatx())) # The extra 1 is the batch dimension
+        Z_tilde = Z
+        c = origin # Shape == [1, N]. The layer's shifting of the origin
+        with tf.GradientTape() as tape:
+          for layer in network.sequence[layer_steps[k-1]:layer_steps[k]]:
+            c = layer(c)
+            Z_tilde = layer(Z_tilde) # Shape == [instance count, N]
+
+        J = tf.squeeze(tape.jacobian(c, origin)) # Shape == [N z_tilde dimensions, N z dimensions]. The layer's linear combination of input dimensions
+
+        # Compute approximation error (contribution of higher order terms in the Maclaurin series)
+        prediction = c + tf.linalg.matmul(Z, tf.transpose(J))
+        P = prediction - Z # Shape == [instance count, N]. Arrows from Z to prediction
+        E = Z_tilde - prediction # Shape == [instance count, N]. Arrows from prediction to Z_tilde
+
+        # 2. Plot
+        # 2.1 Bars
+        plt.subplot(3,1+K,k+1); plt.title(step_titles[k-1], fontsize=10)
+        E_norm = np.mean(np.sqrt(np.sum(E**2, axis=1)))
+        P_norm = np.mean(np.sqrt(np.sum(P**2, axis=1)))
+        plt.bar([''],[E_norm+P_norm], color = gray, edgecolor='black', hatch='oo')
+        plt.bar([''],[P_norm], color = gray, edgecolor='black', hatch='///')
+        max_bar_height = max(max_bar_height, E_norm+P_norm); plt.axis('off')
+
+        # 2.1 Tails
+        # 2.1.1 Error
+        plt.subplot(3,1+K,1+K+k+1)
+        plt.scatter(prediction[:,0], prediction[:,1], color=gray, marker='.',s=0.1)
+        plt.quiver(prediction[:,0], prediction[:,1], E[:,0], E[:,1], angles='xy', scale_units='xy', scale=1., color=gray, zorder=3)
+        plt.scatter(Z_tilde[:,0], Z_tilde[:,1], c=gum.color_palette/255.0, marker='.',s=1.5)
+        plt.axis('equal'); plt.xticks([]); plt.yticks([]); plt.xlim(1.3*np.array(plt.xlim())); plt.ylim(1.3*np.array(plt.ylim()))
+
+        # 2.1.2 Prediction
+        plt.subplot(3,1+K,2*(1+K)+k+1)
+        plt.scatter(Z[:,0], Z[:,1], color=gray, marker='.',s=0.1)
+        plt.quiver(Z[:,0], Z[:,1], P[:,0], P[:,1], angles='xy', scale_units='xy', scale=1., color=gray, zorder=3)
+        plt.scatter(prediction[:,0], prediction[:,1], c=gum.color_palette/255.0, marker='.',s=1.5)
+        plt.axis('equal'); plt.xticks([]); plt.yticks([]); plt.xlim(1.3*np.array(plt.xlim())); plt.ylim(1.3*np.array(plt.ylim()))
+
+        # Prepare next iteration
+        Z=Z_tilde
+
+    # Adjust bar heights
+    for k in range(1, len(layer_steps)):
+      plt.subplot(3,1+K,k+1); plt.ylim(0, max_bar_height)
+    plt.subplot(3,1+K,1); plt.ylabel('Mean Change'); plt.ylim(0, max_bar_height); ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['left'].set_visible(False); ax.spines['bottom'].set_visible(False); plt.xticks([])
+    ax.yaxis.tick_right(); ax.tick_params(axis="y",direction="in", pad=-12)
+
+    plt.tight_layout()
+    plt.show()
 
 # Configuration
 inspection_layer_index = 8
 data_path = os.path.join('data','pre-processed','16 PCA dimensions all in 1 file','Layer 8')
 batch_size = 512
 np.random.seed(850)
-stage_count = 10
+stage_count = 3
 epoch_count = 10
 dimensions_per_factor = [14,1,1]
-materials_to_keep = [1,4]; actions_to_keep = [0,1]
+materials_to_keep = [0,1,3,5]; actions_to_keep = [0,1]
 materials_to_drop = list(range(6))
 for m in reversed(materials_to_keep): materials_to_drop.remove(m)
 actions_to_drop = list(range(4))

@@ -34,26 +34,25 @@ def create_network(Z_sample: np.ndarray, stage_count: int, dimensions_per_factor
 
     # Set up the coupling functions and masks for the coupling layers
     dimensionality = Z_sample.shape[-1]
-    layers = [None] * (1+7*stage_count)
-    layers[0] = mfl.ActivationNormalization(axes=[1], shape=[dimensionality])
+    layers = [None] * (7*stage_count)
     for i in range(stage_count):
-        layers[7*i+1] = mfl.Shuffle(axes=[1], shape=[dimensionality])
+        layers[7*i] = mfl.Shuffle(axes=[1], shape=[dimensionality])
 
         compute_coupling_parameters_1 = msl.BasicFullyConnectedNet(latent_dimension_count=dimensionality, output_dimension_count=dimensionality, depth=3)
         mask_1 = gmm.CheckerBoard(axes=[1], shape=[dimensionality])
 
-        layers[7*i+2] = mfl.AdditiveCoupling(axes=[1], shape=[dimensionality], compute_coupling_parameters=compute_coupling_parameters_1, mask=mask_1)
-        layers[7*i+3] = mfl.CheckerBoard(axes=[1], shape=[dimensionality])
+        layers[7*i+1] = mfl.AdditiveCoupling(axes=[1], shape=[dimensionality], compute_coupling_parameters=compute_coupling_parameters_1, mask=mask_1)
+        layers[7*i+2] = mfl.CheckerBoard(axes=[1], shape=[dimensionality])
 
         compute_coupling_parameters_2 = msl.BasicFullyConnectedNet(latent_dimension_count=dimensionality, output_dimension_count=dimensionality, depth=3)
         mask_2 = gmm.CheckerBoard(axes=[1], shape=[dimensionality])
 
-        layers[7*i+4] = mfl.AdditiveCoupling(axes=[1], shape=[dimensionality], compute_coupling_parameters=compute_coupling_parameters_2, mask=mask_2)
-        layers[7*i+5] = mfl.CheckerBoard(axes=[1], shape=[dimensionality])
+        layers[7*i+3] = mfl.AdditiveCoupling(axes=[1], shape=[dimensionality], compute_coupling_parameters=compute_coupling_parameters_2, mask=mask_2)
+        layers[7*i+4] = mfl.CheckerBoard(axes=[1], shape=[dimensionality])
 
-        layers[7*i+6] = mfl.ActivationNormalization(axes=[1], shape=[dimensionality])
+        layers[7*i+5] = mfl.ActivationNormalization(axes=[1], shape=[dimensionality])
 
-        layers[7*i+7] = mfl.Reflection(axes=[1], shape=[dimensionality], reflection_count=8)
+        layers[7*i+6] = mfl.Reflection(axes=[1], shape=[dimensionality], reflection_count=8)
 
     # Construct the network
     network = mfl.SupervisedFactorNetwork(sequence=layers, dimensions_per_factor=dimensions_per_factor, sigma=0.999)
@@ -73,16 +72,8 @@ def load_iterators(data_path: str, materials_to_drop: List[int], actions_to_drop
     for a in actions_to_drop:
         Z = Z[Y[:,1] != a,:]; Y = Y[Y[:,1] != a,:]
 
-    # standardize
-    #Z=(Z-np.mean(Z,axis=0))/np.std(Z,axis=0) 
-
     # Train test split
     Z_train, Z_test, Y_train, Y_test = train_test_split(Z,Y, test_size=0.33, random_state=53)
-
-    # Fit PCA
-    #pca = PCA(n_components=16)
-    #pca.fit(Z_test)
-    #Z_test = pca.transform(Z_test); Z_train = pca.transform(Z_train)
 
     # Create the iterators
     def similarity_function(Y_a: np.ndarray, Y_b: np.ndarray) -> np.ndarray:
@@ -105,10 +96,10 @@ if __name__ == "__main__":
     np.random.seed(850)
     tf.keras.utils.set_random_seed(125)
     random.seed(946)
-    stage_count = 10
+    stage_count = 5
     epoch_count = 10
     dimensions_per_factor = [14,1,1]
-    materials_to_keep = [1,4]; actions_to_keep = [0,1]
+    materials_to_keep = [0,1,3,5]; actions_to_keep = [0,1]
     materials_to_drop = list(range(6))
     for m in reversed(materials_to_keep): materials_to_drop.remove(m)
     actions_to_drop = list(range(4))
@@ -116,11 +107,12 @@ if __name__ == "__main__":
     m_string = ",".join(str(m) for m in materials_to_keep)
     a_string = ",".join(str(a) for a in actions_to_keep)
     data_path = os.path.join('data','pre-processed',f'{np.sum(dimensions_per_factor)} PCA dimensions all in 1 file',f'Layer {inspection_layer_index}')
-    model_save_path = os.path.join('models', f'Layer {inspection_layer_index}', f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
+    model_save_path = os.path.join('models', f'Layer {inspection_layer_index}')
     plot_save_path = os.path.join('plots','disentangle', f'Layer {inspection_layer_index}')
     if not os.path.exists(model_save_path): os.makedirs(model_save_path)
     if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
-
+    model_save_path = os.path.join(model_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
+    
     # Load data iterators
     train_iterator, test_iterator, batch_count,_,Z_test,_,Y_test = load_iterators(data_path=data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
     Z_ab_sample, Y_ab_sample = next(train_iterator) # Sample
@@ -132,7 +124,7 @@ if __name__ == "__main__":
     if os.path.exists(model_save_path): flow_network.load_weights(model_save_path)
     
     # Calibrate
-    flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001))
+    flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
     epoch_loss_means, epoch_loss_standard_deviations, epoch_loss_means_validate, epoch_loss_standard_deviations_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
     plt.figure(figsize=(10,3)); plt.title('Loss Trajectory')
     plt.plot(epoch_loss_means); plt.plot(epoch_loss_means_validate)
