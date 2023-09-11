@@ -3,7 +3,8 @@ import numpy as np, os
 from typing import Tuple, List
 
 def load_latent_sample(data_folder: str, sample_size: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Loads latent representation for a sample of instances from ``data_folder``.
+    """Loads latent representation for a sample (without replacement) of instances from ``data_folder``.
+    Thus assumes that ``sample_sze`` is at most the number of X files in the data folder.
     
     :param data_folder: The path to the folder that contains the X and Y .npy files for the latent representation of a given layer.
     :type data_folder: str

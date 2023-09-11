@@ -1,5 +1,15 @@
-"""This script creates a flow model and calibrates it to disentangle latent factors of layerwise yamnet. It assumes that the data
-is preprocessed by pre_process.py."""
+"""This script creates a flow model and calibrates it on projected latent represenetations to disentangle uderlying factors for material and action.
+It is possible to remove some classes because they might not all be separable.
+
+Requirements:
+- The script latent_yamnet_to_calibration_data_set needs to be executed apriori
+
+Steps:
+- creates a flow model
+- loads the calibration data set
+- calibrates the model on train split and tests on test split
+- saves a plot for the loss trajectory
+"""
 
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
 from gyoza.modelling import data_iterators as gmd, flow_layers as mfl, standard_layers as msl, masks as gmm
@@ -106,7 +116,7 @@ if __name__ == "__main__":
     for a in reversed(actions_to_keep): actions_to_drop.remove(a)
     m_string = ",".join(str(m) for m in materials_to_keep)
     a_string = ",".join(str(a) for a in actions_to_keep)
-    data_path = os.path.join('data','pre-processed',f'{np.sum(dimensions_per_factor)} PCA dimensions all in 1 file',f'Layer {inspection_layer_index}')
+    data_path = os.path.join('data','latent yamnet',f'{np.sum(dimensions_per_factor)} dimensions',f'Layer {inspection_layer_index}')
     model_save_path = os.path.join('models', f'Layer {inspection_layer_index}')
     plot_save_path = os.path.join('plots','disentangle', f'Layer {inspection_layer_index}')
     if not os.path.exists(model_save_path): os.makedirs(model_save_path)

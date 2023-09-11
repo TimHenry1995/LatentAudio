@@ -2,15 +2,20 @@
 
 Requirements:
 - the audio_to_latent_yamnet script needs to be executed apriori
-- the create_full_PCA_model_for_latent_yamnet script needs to be excuted apriori
 
 Steps:
-- For all layers it laods the latent representations, projects them down to a size manageable for KNN and TSNE 
+- For all layers it laods the latent representations
+- creates a custom small standard scaler and pca model (thus does NOT use the complete one from the create_scalers_and_model_for_latent_yamnet script because running that one on all layers would tak etoo long)
+- projects them down to a size manageable for KNN and TSNE 
 - For each layer it fits a cross validated KNN to predict actions and materials
 - For the first, maximally accurate and last layer it plots the TSNE 2D Scatter plots
 - Saves the plots
+
+Side effects:
+- Any eqaully named previosuly created plots will be overridden.
 """
 
+from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import os, numpy as np, matplotlib.pyplot as plt
@@ -23,12 +28,11 @@ from scipy import stats
 from latent_audio import utilities as utl
 
 # Configuration
-latent_data_folder = os.path.join('data','latent yamnet')
-pca_folder = os.path.join('models','Scaler and PCA')
-figure_output_folder = os.path.join('plots','latent yamnet')
+pca_dimensionality = 64
+latent_data_folder = os.path.join('data','latent yamnet', 'original')
+figure_output_folder = os.path.join('plots','explore latent yamnet',f'{pca_dimensionality} dimensions')
 sample_size = 2048 # The number of instances to be visualized
 cross_validation_folds = 10
-pca_dimensionality = 64
 np.random.seed(42)
 label_to_material = ['W','M','G','S','C','P']
 label_to_action = ['T','R','D','W']
@@ -53,15 +57,12 @@ for layer_index in layer_indices:
     Ys[layer_index] = Y
     print(f"Loaded sample: X shape == {X.shape}, Y shape == {Y.shape}")
 
-    # Load standard scaler and PCA
-    pca_layer_folder = os.path.join(pca_folder, f"Layer {layer_index}")
-    with open(os.path.join(pca_layer_folder, "Complete Standard Scaler.pkl"))
-
-    # Fit PCA
+    # Fit Scalers and PCA
+    pre_scaler = StandardScaler()
     pca = PCA(n_components=pca_dimensionality)
-    pca.fit(X)
+    post_scaler = StandardScaler()
+    X = post_scaler.fit_transform(pca.fit_transform(pre_scaler.fit_transform(X)))
     explained_variances[layer_index] = pca.explained_variance_ratio_
-    X = pca.transform(X)
     print("Applied Full Standard Scaler, PCA and projected Standard Scaler")
 
     # Fit KNN
