@@ -2,6 +2,7 @@
 and shows in scatter plots how well the matierial and action factors are disentangled."""
 
 from latent_audio.scripts import disentangle as lsd
+import latent_audio.utilities as utl
 from latent_audio.yamnet import layer_wise as lyl
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
 import os, numpy as np
@@ -38,8 +39,8 @@ def scatter_plot(flow_network, Z, Y, material_labels, action_labels, plot_save_p
 
     # 1.2 Horizontal Boxplot
     plt.subplot(2,4,6)
-    plt.boxplot([Z_tilde_m[Y[:,-2]==m] for m in ms], vert=False)
-    plt.yticks(list(range(1,len(ms)+1)), [material_labels[m] for m in ms])
+    plt.boxplot([Z_tilde_m[Y[:,-2]==m] for m in reversed(ms)], vert=False)
+    plt.yticks(list(range(1,len(ms)+1)), [material_labels[m] for m in reversed(ms)])
     plt.xlabel("Material Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
     plt.xticks([])
@@ -64,8 +65,8 @@ def scatter_plot(flow_network, Z, Y, material_labels, action_labels, plot_save_p
 
     # 2.2 Horizontal Boxplot
     plt.subplot(2,4,8)
-    plt.boxplot([Z_tilde_m[Y[:,-1]==a] for a in As], vert=False)
-    plt.yticks(list(range(1,len(As)+1)), [action_labels[a] for a in As])
+    plt.boxplot([Z_tilde_m[Y[:,-1]==a] for a in reversed(As)], vert=False)
+    plt.yticks(list(range(1,len(As)+1)), [action_labels[a] for a in reversed(As)])
     plt.xlabel("Material Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
     plt.xticks([])
@@ -125,21 +126,42 @@ def compute_paired_differences(flow_network: mfl.SupervisedFactorNetwork, Z_tild
     # Output
     return delta
 
-def latent_transfer(data_folder_path: str, materials: List[int], actions: List[int], standard_scaler: Callable, full_pca: Callable, flow_network: Callable, yamnet_from_layer: Callable) -> None:
+def latent_transfer(X_sample: np.ndarray, dimensions_per_factor: List[int], switch_factors:int, standard_scaler: Callable, full_pca: Callable, flow_network: Callable, yamnet_from_layer: Callable) -> None:
 
-    # Load a sample of even size from yamnets latent space 
-     
-    # Apply standard scaler and full pca
+    # Apply standard scaler(int)(np.sum(dimensions_per_factor[:factor])) and full pca
+    X_sample = full_pca.transform(scaler.transform(X_sample))
 
     # Pass the top few dimensions through flow net
+    dimension_count = np.sum(dimensions_per_factor)
+    Z_tilde = flow_network(X_sample[:,:dimension_count]).numpy()
 
-    # Swap the material and 
-    # invert flow net
-    # replace top 16 dims
-    # invert full pca, invert scaler
-    # continue processing through yamnet
-    # get a class distribution out and match that against some reference
+    # Swap the factors
+    instance_count = X_sample.shape[0]
+    Z_tilde_swapped = np.copy(Z_tilde)
+    switch_factors = sorted(switch_factors)
+    for factor in switch_factors:
+        start = (int)(np.sum(dimensions_per_factor[:factor]))
+        end = (int)(np.sum(dimensions_per_factor[:factor+1]))
+        Z_tilde_swapped[:instance_count,start:end] = Z_tilde[instance_count:,start:end]
+        Z_tilde_swapped[instance_count:,start:end] = Z_tilde[:instance_count,start:end]
+    del Z_tilde
+
+    # Invert flow net
+    Z = flow_network.invert(Z_tilde_swapped)
+
+    # Replace top few dimensions
+    X_sample_swapped = np.copy(X_sample)
+    X_sample_swapped[:,:dimension_count] = Z
+
+    # Invert full pca, invert scaler
+    X_sample_swapped = scaler.inverse_transform(pca.inverse_transform(X_sample_swapped))
+
+    # Continue processing through yamnet
+    P = yamnet_from_layer(X_sample_swapped)
     
+    # Outputs
+    return P
+
     # m1 a1
     # m2 a2
     # x_a, x_b  ss  sd  ds  dd
@@ -159,7 +181,6 @@ def latent_transfer(data_folder_path: str, materials: List[int], actions: List[i
     # m2a2 m1a2         x
     # m2a2 m2a1     x
     # m2a2 m2a2 x
-    pass
 
 def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tuple[float, float], manifold_function: Callable, manifold_name:str, layer_steps: List[int], step_titles: List[str]):
     """Plots for each layer (or rather step of consecutive layers) the contribution to the data transformation. The plot is strucutred into three rows.
@@ -266,15 +287,16 @@ data_path = os.path.join('data','pre-processed','16 PCA dimensions all in 1 file
 batch_size = 512
 np.random.seed(850)
 stage_count = 3
-epoch_count = 10
+epoch_count = 5
 dimensions_per_factor = [14,1,1]
-materials_to_keep = [0,1,3,5]; actions_to_keep = [0,1]
+materials_to_keep = [0,1,3]; actions_to_keep = [0,1,3]
 materials_to_drop = list(range(6))
 for m in reversed(materials_to_keep): materials_to_drop.remove(m)
 actions_to_drop = list(range(4))
 for a in reversed(actions_to_keep): actions_to_drop.remove(a)
 m_string = ",".join(str(m) for m in materials_to_keep)
 a_string = ",".join(str(a) for a in actions_to_keep)
+x_data_path = os.path.join('/Volumes/Untitled 2/pre-processed', f'Layer {inspection_layer_index}')
 model_save_path = os.path.join('models', f'Layer {inspection_layer_index}')
 plot_save_path = os.path.join('plots','evaluate disentangle', f'Layer {inspection_layer_index}')
 if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
@@ -293,12 +315,15 @@ flow_network.load_weights(os.path.join(model_save_path, f'materials {m_string} a
 
 # Evaluate
 scatter_plot(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=plot_save_path)
-
-with open(os.path.join(model_save_path, 'Standard Scaler.pkl'), 'rb') as file_handle:
-    scaler = pkl.load(file_handle)
-with open(os.path.join(model_save_path, f'PCA {np.sum(dimensions_per_factor)}.pkl'), 'rb') as file_handle:
-    pca = pkl.load(file_handle)
 '''
+# Load a sample of even size from yamnets latent space 
+X_sample, Y_sample = utl.load_latent_sample(data_folder=data_folder_path, sample_size=sample_size)
+    
+with open(os.path.join(model_save_path, 'Full Standard Scaler.pkl'), 'rb') as file_handle:
+    scaler = pkl.load(file_handle)
+with open(os.path.join(model_save_path, f'Full PCA.pkl'), 'rb') as file_handle:
+    pca = pkl.load(file_handle)
+
 yamnet_second_half = lyl.LayerWiseYamnet()
 with open(os.path.join(model_save_path, 'Standard Scaler.pkl'), 'rb') as file_handle:
     scaler = pkl.load(file_handle)

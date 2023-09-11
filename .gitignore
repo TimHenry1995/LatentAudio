@@ -9,7 +9,9 @@ __pycache__/
 # Data
 data/pre-processed/All PCA dimensions
 data/sound slices for humans
-
+data/pre-processed/1.0 PCA dimensions all in 1 file/Layer 8/X_sample_new.npy
+models/Layer 8/Full PCA.pkl
+models/Layer 8/Full Standard Scaler.pkl
 # Mac OSX
 .DS_Store
 

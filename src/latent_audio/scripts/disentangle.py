@@ -55,7 +55,7 @@ def create_network(Z_sample: np.ndarray, stage_count: int, dimensions_per_factor
         layers[7*i+6] = mfl.Reflection(axes=[1], shape=[dimensionality], reflection_count=8)
 
     # Construct the network
-    network = mfl.SupervisedFactorNetwork(sequence=layers, dimensions_per_factor=dimensions_per_factor, sigma=0.999)
+    network = mfl.SupervisedFactorNetwork(sequence=layers, dimensions_per_factor=dimensions_per_factor, sigma=0.9)
     network(Z_sample) # Initialization of some layer parameters
 
     # Outputs
@@ -71,6 +71,9 @@ def load_iterators(data_path: str, materials_to_drop: List[int], actions_to_drop
         Z = Z[Y[:,0] != m,:]; Y = Y[Y[:,0] != m,:]
     for a in actions_to_drop:
         Z = Z[Y[:,1] != a,:]; Y = Y[Y[:,1] != a,:]
+
+    # Standardize
+    Z = (Z-np.mean(Z, axis=1)[:,np.newaxis])/np.std(Z, axis=1)[:,np.newaxis]
 
     # Train test split
     Z_train, Z_test, Y_train, Y_test = train_test_split(Z,Y, test_size=0.33, random_state=53)
@@ -96,10 +99,10 @@ if __name__ == "__main__":
     np.random.seed(850)
     tf.keras.utils.set_random_seed(125)
     random.seed(946)
-    stage_count = 5
-    epoch_count = 10
+    stage_count = 3
+    epoch_count = 5
     dimensions_per_factor = [14,1,1]
-    materials_to_keep = [0,1,3,5]; actions_to_keep = [0,1]
+    materials_to_keep = [0,1,3]; actions_to_keep = [0,1,3]
     materials_to_drop = list(range(6))
     for m in reversed(materials_to_keep): materials_to_drop.remove(m)
     actions_to_drop = list(range(4))
@@ -124,7 +127,7 @@ if __name__ == "__main__":
     if os.path.exists(model_save_path): flow_network.load_weights(model_save_path)
     
     # Calibrate
-    flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
+    flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
     epoch_loss_means, epoch_loss_standard_deviations, epoch_loss_means_validate, epoch_loss_standard_deviations_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
     plt.figure(figsize=(10,3)); plt.title('Loss Trajectory')
     plt.plot(epoch_loss_means); plt.plot(epoch_loss_means_validate)
