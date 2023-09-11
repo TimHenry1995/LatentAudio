@@ -37,11 +37,11 @@ for file_name in reversed(raw_file_names):
 # Preprocess all files
 for raw_file_name in raw_file_names:
     # Load .wav file
-    waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name))
+    waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name), dtype=np.int16)
     
     # Apply effects
     waveform = fx(waveform)
-    
+    assert waveform.dtype == np.int16
     # Save
     sf.write(os.path.join(augmented_folder_path, raw_file_name), waveform, sampling_rate)
 
