@@ -72,9 +72,6 @@ def load_iterators(data_path: str, materials_to_drop: List[int], actions_to_drop
     for a in actions_to_drop:
         Z = Z[Y[:,1] != a,:]; Y = Y[Y[:,1] != a,:]
 
-    # Standardize
-    Z = (Z-np.mean(Z, axis=1)[:,np.newaxis])/np.std(Z, axis=1)[:,np.newaxis]
-
     # Train test split
     Z_train, Z_test, Y_train, Y_test = train_test_split(Z,Y, test_size=0.33, random_state=53)
 

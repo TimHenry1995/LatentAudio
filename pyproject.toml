@@ -26,6 +26,8 @@ dependencies = [
     "gyoza>=0.1.8",
     "scikit-learn == 1.3.0",
     "scipy>=1.11.1",
+    "pysndfx>=0.3.6",
+    "sox>=1.4.1",
     "matplotlib >= 3.5.3",
     "numpy >= 1.21.6",
     "tensorflow >= 2.9"

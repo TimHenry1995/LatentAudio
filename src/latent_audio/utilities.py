@@ -1,4 +1,4 @@
-
+import random
 import numpy as np, os
 from typing import Tuple, List
 
@@ -18,7 +18,7 @@ def load_latent_sample(data_folder: str, sample_size: int) -> Tuple[np.ndarray, 
     # Load a sample of X and Y
     x_file_names = find_matching_strings(strings=os.listdir(data_folder), token='_X_')
     X = [None] * sample_size; Y = [None] * sample_size
-    for i, j in enumerate(np.random.randint(low=0, high=len(x_file_names), size=sample_size)):
+    for i, j in enumerate(random.sample(range(0, len(x_file_names)), sample_size)):
         x_path = os.path.join(data_folder, str(x_file_names[j]))
         X[i] = np.load(x_path)[np.newaxis,:]; Y[i] = np.load(x_path.replace('_X_','_Y_'))[np.newaxis,:]
     X = np.concatenate(X, axis=0); Y = np.concatenate(Y, axis=0)
