@@ -2,6 +2,7 @@
 
 Requirements:
 - The audio data needs to be sampled at 48 Khz with int16 bit rate
+- in addition to the packages installed with this python project, the instructions for installing pysndfx and its dependency sox need to be followed https://pypi.org/project/pysndfx/
 
 Steps:
 - Loads all sound files
@@ -21,7 +22,6 @@ fx = (
     AudioEffectsChain()
     .highshelf()
     .reverb()
-    .delay()
     .lowshelf()
 )
 
@@ -37,14 +37,13 @@ for file_name in reversed(raw_file_names):
 # Preprocess all files
 for raw_file_name in raw_file_names:
     # Load .wav file
-    fx("CD.wav","augmented CD.wav")
-    #waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name))
+    waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name))
     
     # Apply effects
-    #waveform = fx(waveform)
+    waveform = fx(waveform)
     
     # Save
-    #sf.write(os.path.join(augmented_folder_path, raw_file_name), waveform, sampling_rate)
+    sf.write(os.path.join(augmented_folder_path, raw_file_name), waveform, sampling_rate)
 
 print("Script completed")            
 
