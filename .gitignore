@@ -8,7 +8,6 @@ __pycache__/
 
 # Data
 data/latent yamnet
-data/narration
 data/sound slices for humans
 
 # Models
