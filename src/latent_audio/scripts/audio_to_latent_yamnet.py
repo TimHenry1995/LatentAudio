@@ -60,7 +60,6 @@ for inspection_layer_index in range(14):
         # Concatenate raw and augmented
         waveform = np.concatenate([waveform_r, waveform_a])
         
-
         # Down-sample to yamnet's 16000
         waveform = decimate(waveform, 3)
         sampling_rate = 16000

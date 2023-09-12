@@ -98,18 +98,37 @@ def load_iterators(data_path: str, materials_to_drop: List[int], actions_to_drop
 
     return train_iterator, test_iterator, batch_count, Z_train, Z_test, Y_train, Y_test
 
+def plot_calibration_trajectory(means_train, stds_train, means_validate, stds_validate, batch_size, plot_save_path):
+    # Plot train error
+    plt.figure(figsize=(10,5)); plt.title("Calibration Trajectory")
+    standard_error_train = np.array(stds_train)/np.sqrt(batch_size)
+    plt.fill_between(range(epoch_count), np.array(means_train)+2*standard_error_train, np.array(means_train)-2*standard_error_train, alpha=0.2)
+
+    # Plot validation error
+    standard_error_validate = np.array(stds_validate)/np.sqrt(batch_size)
+    plt.fill_between(range(epoch_count), np.array(means_validate)+2*standard_error_validate, np.array(means_validate)-2*standard_error_validate, alpha=0.2)
+
+    # Lines
+    plt.plot(range(epoch_count), means_train)
+    plt.plot(range(epoch_count), means_validate)
+
+    plt.legend([r"Train Loss $\pm$ 2 SE", r"Validation Loss $\pm$ 2 SE"])
+    plt.xlabel("Epoch"); plt.ylabel("Loss")
+    plt.savefig(plot_save_path)
+    plt.show()
+
 if __name__ == "__main__":
 
     # Configuration
-    inspection_layer_index = 8
+    inspection_layer_index = 9
     batch_size = 512
     np.random.seed(865)
     tf.keras.utils.set_random_seed(895)
     random.seed(248)
     stage_count = 5
-    epoch_count = 100
+    epoch_count = 2
     dimensions_per_factor = [62,1,1]
-    materials_to_keep = [0,1,3]; actions_to_keep = [0,1,3]
+    materials_to_keep = [0,1]; actions_to_keep = [0,1]
     materials_to_drop = list(range(6))
     for m in reversed(materials_to_keep): materials_to_drop.remove(m)
     actions_to_drop = list(range(4))
@@ -117,11 +136,11 @@ if __name__ == "__main__":
     m_string = ",".join(str(m) for m in materials_to_keep)
     a_string = ",".join(str(a) for a in actions_to_keep)
     data_path = os.path.join('data','latent yamnet',f'{np.sum(dimensions_per_factor)} dimensions',f'Layer {inspection_layer_index}')
-    model_save_path = os.path.join('models', f'Layer {inspection_layer_index}')
-    plot_save_path = os.path.join('plots','disentangle', f'Layer {inspection_layer_index}')
+    model_save_path = os.path.join('models', 'flow models',f'Layer {inspection_layer_index}')
+    plot_save_path = os.path.join('plots','flow models', f'Layer {inspection_layer_index}')
     if not os.path.exists(model_save_path): os.makedirs(model_save_path)
     if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
-    model_save_path = os.path.join(model_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
+    model_save_path = os.path.join(model_save_path, f'Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
     
     # Load data iterators
     train_iterator, test_iterator, batch_count,_,Z_test,_,Y_test = load_iterators(data_path=data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
@@ -135,11 +154,9 @@ if __name__ == "__main__":
     
     # Calibrate
     flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.005))
-    epoch_loss_means, epoch_loss_standard_deviations, epoch_loss_means_validate, epoch_loss_standard_deviations_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
-    plt.figure(figsize=(10,3)); plt.title('Loss Trajectory')
-    plt.plot(epoch_loss_means); plt.plot(epoch_loss_means_validate)
-    plt.xlabel('Epoch'); plt.ylabel('Loss')
-    plt.savefig(os.path.join(plot_save_path, f'materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Loss.png')); plt.show()
+    means_train, stds_train, means_validate, stds_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
+    
+    plot_calibration_trajectory(means_train=means_train, stds_train=stds_train, means_validate=means_validate, stds_validate=stds_validate, batch_size=batch_size, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Loss.png"))
 
     # Save existing model
     flow_network.save_weights(model_save_path)
