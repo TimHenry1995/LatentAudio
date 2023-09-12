@@ -52,7 +52,7 @@ for i, x_file_name in enumerate(x_file_names):
     X = np.load(os.path.join(input_layer_path, x_file_name))[np.newaxis,:]
     Xs[i] = post_scaler.transform(pca.transform(pre_scaler.transform(X)))[:,:dimensionality] 
     Ys[i] = np.load(os.path.join(input_layer_path, x_file_name.replace('_X_','_Y_')))[np.newaxis,:]
-    if i % (int)(len(x_file_names)/10) == 0:
+    if (i+1) % (int)(len(x_file_names)/10) == 0:
         print(f"{np.round(100*(i+1)/len(x_file_names),2)} % Finished")
 # Save
 np.save(os.path.join(output_layer_path, "X"), np.concatenate(Xs, axis=0))
