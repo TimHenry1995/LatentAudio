@@ -24,11 +24,11 @@ def scatter_plot(flow_network, Z, Y, material_labels, action_labels, plot_save_p
     # Plot
     plt.subplots(2, 4, figsize=(12,6), gridspec_kw={'width_ratios': [1,5,1,5], 'height_ratios': [5,1]})
 
-    plt.suptitle(r"$\tilde{Z}$")
+    plt.suptitle(r"Disentangled Materials and Actions")
 
     # 1. Materials
     ms = list(set(Y[:,-2]))
-    
+
     # 1.1 Vertical Boxplot
     plt.subplot(2,4,1)
     plt.boxplot([Z_tilde_a[Y[:,-2]==m] for m in ms])
@@ -47,14 +47,14 @@ def scatter_plot(flow_network, Z, Y, material_labels, action_labels, plot_save_p
 
     # 1.3 Scatter
     plt.subplot(2,4,2); plt.title("Materials")
-    
+
     for m in ms:
         plt.scatter(Z_tilde_m[Y[:,-2]==m], Z_tilde_a[Y[:,-2]==m], marker='.')
     plt.legend([material_labels[m] for m in ms])
-    
+
     # 2. Action
     As = list(set(Y[:,-1]))
-    
+
     # 2.1 Vertical Boxplot
     plt.subplot(2,4,3)
     plt.boxplot([Z_tilde_a[Y[:,-1]==a] for a in As])
@@ -73,58 +73,15 @@ def scatter_plot(flow_network, Z, Y, material_labels, action_labels, plot_save_p
 
     # 2.3 Scatter
     plt.subplot(2,4,4); plt.title("Actions")
-    
+
     for a in As:
         plt.scatter(Z_tilde_m[Y[:,-1]==a], Z_tilde_a[Y[:,-1]==a], marker='.')
     plt.legend([action_labels[a] for a in As])
-    
+
     # Remove other axes
-    plt.subplot(2,4,5); plt.axis('off'); plt.subplot(2,4,7); plt.axis('off'); 
-    plt.savefig(os.path.join(plot_save_path, f"materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Scatterplots.png"))
+    plt.subplot(2,4,5); plt.axis('off'); plt.subplot(2,4,7); plt.axis('off');
+    plt.savefig(plot_save_path)
     plt.show()
-
-def evaluate_factor_sensitivity(flow_network: mfl.SupervisedFactorNetwork, Z_tilde_to_semantic: Callable, iterator: Callable, sample_size: int, dimensions_per_factor: List[int], plot_save_path: str) -> None:
-
-    # Compute distance between pairs
-    delta_ma = compute_paired_differences(flow_network=flow_network, iterator=iterator, equal_material=True, equal_action=True, sample_size=sample_size) # ma means equal material, equal action
-    delta_m = compute_paired_differences(flow_network=flow_network, iterator=iterator, equal_material=True, equal_action=False, sample_size=sample_size) # m means equal material, different action
-    delta_a = compute_paired_differences(flow_network=flow_network, iterator=iterator, equal_material=False, equal_action=True, sample_size=sample_size) # a means different material, equal action
-
-    count = 0
-    distance = lambda x: tf.sqrt(tf.reduce_sum(x**2, axis=1)) # Shape of output == [instance count]
-    factor_names = ['Residual','Material','Action']
-    for f, dimension_count in enumerate(dimensions_per_factor):
-        # Plot
-        plt.figure(); plt.title(f'Sensitivity Of {factor_names[f]} Dimensions '+ r'Of $\tilde{Z}$' + '\nTo Changes In Z')
-        plt.violinplot([distance(delta_ma[:,count:count+dimension_count]), distance(delta_m[:,count:count+dimension_count]), distance(delta_a[:,count:count+dimension_count])], showmeans=True)
-        plt.xticks(ticks=[1,2,3], labels=['Same Material\nSame Action', 'Same Material\nOther Action', 'Other Material\nSame Action'])
-        plt.ylabel('Distance'); plt.xlabel("Input Pair")
-        count += dimension_count
-        plt.savefig(os.path.join(plot_save_path, f' Sensitivity {factor_names[f]}.png'))
-    plt.show()
-
-def compute_paired_differences(flow_network: mfl.SupervisedFactorNetwork, Z_tilde_to_semantic: Callable, iterator: Callable, equal_material: bool, equal_action: bool, sample_size: int) -> None:
-
-    # Initialization
-    Z_ab = []
-    current_sample_size = 0
-
-    # Accumulate instances to meet the sample size
-    while current_sample_size < sample_size:
-        Z_ab_batch, Y_ab_batch = next(iterator)
-        Z_ab.append(Z_ab_batch.numpy()[np.logical_and(Y_ab_batch[:,1] == equal_material, Y_ab_batch[:,2] == equal_action),:])
-        
-        current_sample_size += Z_ab[-1].shape[0]
-
-    # Obtain proper shape
-    Z_ab = np.concatenate(Z_ab, axis=0) # Instance axis
-    Z_ab = Z_ab[:sample_size,:] # Shape == [sample_size, 2, ...] where 2 is for pair and ... is for a single instance
-
-    # Distance vectors in disentangled space
-    delta = tf.reshape(flow_network(Z_ab[:,0,:]) - flow_network(Z_ab[:,1,:]), [sample_size, -1]) # Shape == [instance count, dimension count]
-
-    # Output
-    return delta
 
 def latent_transfer(X_sample: np.ndarray, dimensions_per_factor: List[int], switch_factors:int, standard_scaler: Callable, full_pca: Callable, flow_network: Callable, yamnet_from_layer: Callable) -> None:
 
