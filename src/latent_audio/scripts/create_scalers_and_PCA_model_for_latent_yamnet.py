@@ -23,10 +23,10 @@ import pickle as pkl
 import random
 
 # Configuration
-X_folder = os.path.join('data','latent yamnet') # The latent yamnet data
+X_folder = os.path.join('data','latent yamnet','original') # The latent yamnet data
 PCA_folder = os.path.join('models','Scaler and PCA')
 
-layer_index = 0
+layer_index = 9
 random.seed(42)
 X_layer_folder = os.path.join(X_folder, f'Layer {layer_index}')
 PCA_layer_folder = os.path.join(PCA_folder, f"Layer {layer_index}")
@@ -36,7 +36,7 @@ os.makedirs(PCA_layer_folder)
 # Load one instance to get shape
 X_tmp, _ = utl.load_latent_sample(data_folder=X_layer_folder, sample_size=1) # Shape == [sample size = 1, dimensionality]
 dimensionality = X_tmp.shape[1] 
-sample_size = (int)(1.5 * dimensionality) # PCA needs dimensionality many UNIQUE data points. Here we take a few more data points to hopefully have this many unique ones
+sample_size = (int)(1.1 * dimensionality) # PCA needs dimensionality many UNIQUE data points. Here we take a few more data points to hopefully have this many unique ones
 del X_tmp
 
 # Load sample

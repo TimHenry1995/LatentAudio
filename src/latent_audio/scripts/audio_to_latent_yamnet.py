@@ -34,7 +34,7 @@ yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet
 material_to_label = {'W':0,'M':1,'G':2,'S':3,'C':4,'P':5}
 action_to_label = {'T':0,'R':1,'D':2,'W':3}
 
-for inspection_layer_index in [0,1,2,3,4,5,6,7,9,10,11,12,13]:#range(14):
+for inspection_layer_index in range(14):
     print(f"Layer {inspection_layer_index}")
 
     layer_path = os.path.join(latent_data_path,f'Layer {inspection_layer_index}')

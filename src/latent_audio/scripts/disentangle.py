@@ -103,12 +103,12 @@ if __name__ == "__main__":
     # Configuration
     inspection_layer_index = 8
     batch_size = 512
-    np.random.seed(850)
-    tf.keras.utils.set_random_seed(125)
-    random.seed(946)
-    stage_count = 3
-    epoch_count = 5
-    dimensions_per_factor = [14,1,1]
+    np.random.seed(865)
+    tf.keras.utils.set_random_seed(895)
+    random.seed(248)
+    stage_count = 5
+    epoch_count = 100
+    dimensions_per_factor = [62,1,1]
     materials_to_keep = [0,1,3]; actions_to_keep = [0,1,3]
     materials_to_drop = list(range(6))
     for m in reversed(materials_to_keep): materials_to_drop.remove(m)
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     if os.path.exists(model_save_path): flow_network.load_weights(model_save_path)
     
     # Calibrate
-    flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
+    flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.005))
     epoch_loss_means, epoch_loss_standard_deviations, epoch_loss_means_validate, epoch_loss_standard_deviations_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
     plt.figure(figsize=(10,3)); plt.title('Loss Trajectory')
     plt.plot(epoch_loss_means); plt.plot(epoch_loss_means_validate)

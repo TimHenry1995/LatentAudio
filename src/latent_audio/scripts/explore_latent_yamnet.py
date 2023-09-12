@@ -47,6 +47,7 @@ layer_indices.sort()
 explained_variances = {}
 projections = {}
 KNN_accuracies = {}
+dimensionalities = {}
 Ys = {}
 
 for layer_index in layer_indices:
@@ -55,7 +56,8 @@ for layer_index in layer_indices:
     # Load sample
     X, Y = utl.load_latent_sample(data_folder=os.path.join(latent_data_folder, f"Layer {layer_index}"), sample_size=sample_size)
     Ys[layer_index] = Y
-    print(f"Loaded sample: X shape == {X.shape}, Y shape == {Y.shape}")
+    print(f"\tLoaded sample: X shape == {X.shape}, Y shape == {Y.shape}")
+    dimensionalities[layer_index] = X.shape[1] # X is assumed to be of shape [instances, dimensions]
 
     # Fit Scalers and PCA
     pre_scaler = StandardScaler()
@@ -63,7 +65,7 @@ for layer_index in layer_indices:
     post_scaler = StandardScaler()
     X = post_scaler.fit_transform(pca.fit_transform(pre_scaler.fit_transform(X)))
     explained_variances[layer_index] = pca.explained_variance_ratio_
-    print("Applied Full Standard Scaler, PCA and projected Standard Scaler")
+    print("\tApplied pre PCA Standard Scaler, PCA and post PCA Standard Scaler")
 
     # Fit KNN
     KNN = KNeighborsClassifier(n_neighbors=3)
@@ -126,7 +128,7 @@ for factor_index, factor_name, label_to_factor in zip([0,1], ['Material','Action
     plt.savefig(os.path.join(figure_output_folder, f"TSNE {factor_name}"))
 
 # Plot PCA
-plt.figure(figsize=(10,5)); plt.title("Principal Component Analysis")
+plt.figure(figsize=(10,5)); plt.title(f"Principal Component Analysis")
 for layer_index in layer_indices:
     R = 0
     plt.gca().set_prop_cycle(None)
@@ -135,7 +137,14 @@ for layer_index in layer_indices:
         R += r
 
     plt.ylim(0,1)
-
 plt.ylabel('Explained Variance'); plt.xlabel('Layer')
-plt.savefig(os.path.join(figure_output_folder, f"PCA {pca_dimensionality} dimensions"))
+plt.savefig(os.path.join(figure_output_folder, f"Principal Component Analysis"))
 plt.show()
+
+# Plot dimensionalities
+plt.figure(figsize=(10,5)); plt.title("Original Dimensionalities")
+plt.bar(dimensionalities.keys(), dimensionalities.values(), color='white', edgecolor='black')
+plt.ylabel("Dimensionality"); plt.xlabel('Layer')
+plt.savefig(os.path.join(figure_output_folder, "Original Dimensionalities"))
+plt.show()
+

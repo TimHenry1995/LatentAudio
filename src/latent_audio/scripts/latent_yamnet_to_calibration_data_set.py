@@ -20,11 +20,11 @@ from latent_audio import utilities as utl
 import os, pickle as pkl, numpy as np, shutil
 
 # Configuration
-dimensionality = 16
+dimensionality = 64
 input_data_path = os.path.join('data','latent yamnet','original')
 pca_path = os.path.join('models','Scaler and PCA')
 output_data_path = os.path.join('data','latent yamnet', f"{dimensionality} dimensions")
-layer_index = 8
+layer_index = 9
 
 # Processing
 input_layer_path = os.path.join(input_data_path, f'Layer {layer_index}')
@@ -53,7 +53,7 @@ for i, x_file_name in enumerate(x_file_names):
     Xs[i] = post_scaler.transform(pca.transform(pre_scaler.transform(X)))[:,:dimensionality] 
     Ys[i] = np.load(os.path.join(input_layer_path, x_file_name.replace('_X_','_Y_')))[np.newaxis,:]
     if i % (int)(len(x_file_names)/10) == 0:
-        print(f"{np.round(100*i/len(x_file_names),2)} % Finished")
+        print(f"{np.round(100*(i+1)/len(x_file_names),2)} % Finished")
 # Save
 np.save(os.path.join(output_layer_path, "X"), np.concatenate(Xs, axis=0))
 np.save(os.path.join(output_layer_path, "Y"), np.concatenate(Ys, axis=0))
