@@ -84,36 +84,56 @@ def scatter_plot_disentangled(flow_network, Z, Y, material_labels, action_labels
     plt.savefig(plot_save_path)
     plt.show()
 
-def violinplot_latent_transfer(Z_prime: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str) -> None:
+def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str) -> None:
 
     # Swop each factor
-    swops = {'Material':[1], 'Action':[2], 'Material\n& Action':[1,2]}
+    swops = {'Material':['material'], 'Action':['action'], 'Material and Action':['material','action']}
     dissimilarities = {}
-    dissimilarity_function = lambda P, Q: np.clip(np.sum(np.abs(P-Q)/((P+Q)/2+1e-8), axis=1), a_min=0, a_max=3*np.mean(np.sum(np.abs(P-Q)/((P+Q)/2+1e-8), axis=1)))
+    entropy = lambda P, Q: P*np.log(Q)
+    dissimilarity_function = lambda P, Q: - np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
+    plt.figure(figsize=(10,10)); plt.suptitle('Latent Transfer')
+    b = 1
+    x_min = np.finfo(np.float32).max
+    x_max = np.finfo(np.float32).min
+    
     for factor_name, switch_factors in swops.items():
         # Baseline
-        P, Q = latent_transfer(Z_prime=Z_prime, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
-        dissimilarities["Baseline\n" + factor_name] = dissimilarity_function(P,Q) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
+        P_d, P_r = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
+        baseline = dissimilarity_function(P_d,P_r) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
         # Experimental
-        P, Q = latent_transfer(Z_prime=Z_prime, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=False, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
-        dissimilarities["Experimental\n" + factor_name] = dissimilarity_function(P,Q) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
-
-    # Plot
-    plt.figure(figsize=(10,5)); plt.title('Latent Transfer Dissimilarities')
-    plt.violinplot(dissimilarities.values(), showmeans=True, showextrema=False, vert=False)
-    plt.yticks(range(1, len(dissimilarities)+1), dissimilarities.keys())
-    plt.xlabel(r"Dissimilarity of $Z_d$ and $Z_a$")
+        P_d, P_r = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=False, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
+        experimental = dissimilarity_function(P_d,P_r) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
+        
+        
+        # Plot
+        plt.subplot(len(swops),1,b); plt.title(factor_name)
+        plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)
+        plt.yticks([1,2], ['Within Class','Between Class'], rotation=90, va='center')
+        x_min = min(x_min, plt.xlim()[0])
+        x_max = max(x_max, plt.xlim()[1])
+        
+        b+=1
+    
+    # Set labels and range
+    plt.xlabel(r"Crossentropy of $P_d$ and $P_r$")
+    for i in range (1,b): 
+        plt.subplot(b-1,1,i); plt.xlim([x_min, x_max])
+        plt.grid(alpha=0.25)
+        if i < b-1: plt.gca().tick_params(labelbottom=False) 
+        
+    
     plt.savefig(plot_save_path)
     plt.show()
+    
 
-def latent_transfer(Z_prime: np.ndarray, dimensions_per_factor: List[int], switch_factors:int, baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
+def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
 
     instance_count = Z_prime.shape[0]
-    assert instance_count % 2 == 0, f"The number of instance was assumed to be even such that the first half of instances can be swopped with the second half. There were {instance_count} many instances provided."
+    #assert instance_count % 2 == 0, f"The number of instance was assumed to be even such that the first half of instances can be swopped with the second half. There were {instance_count} many instances provided."
     
     # Compute P
     layer_index_to_shape = [ [instance_count, 48, 32, 32],  [instance_count, 48, 32, 64],  [instance_count, 24, 16, 128],  [instance_count, 24, 16, 128],  [instance_count, 12, 8, 256],  [instance_count, 12, 8, 256], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 3, 2, 1024], [instance_count, 3, 2, 1024]]
-    P = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime, layer_index_to_shape[layer_index]), layer_index=layer_index).numpy()
+    P = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime, layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
     
     # Apply standard scalers and pca
     Z_prime = post_scaler.transform(pca.transform(pre_scaler.transform(Z_prime)))
@@ -122,21 +142,42 @@ def latent_transfer(Z_prime: np.ndarray, dimensions_per_factor: List[int], switc
     dimension_count = np.sum(dimensions_per_factor)
     Z_tilde = flow_network(Z_prime[:,:dimension_count]).numpy()
 
-    # Swap the factors
-    Z_tilde_swapped = np.copy(Z_tilde)
-    switch_factors = sorted(switch_factors)
-    for factor in switch_factors:
-        start = (int)(np.sum(dimensions_per_factor[:factor]))
-        end = (int)(np.sum(dimensions_per_factor[:factor+1]))
-        if baseline:
-            # The baseline simply replaces the factor with a standard random normal
-            Z_tilde_swapped[:instance_count,start:end] = np.random.multivariate_normal(mean=np.zeros([end-start]), cov=np.eye(end-start), size=[instance_count])
-        else:
-            # The experimental condition actually switches instances along the given factor
-            Z_tilde_swapped[:instance_count//2,start:end] = Z_tilde[instance_count//2:,start:end]
-            Z_tilde_swapped[instance_count//2:,start:end] = Z_tilde[:instance_count//2,start:end]
-    del Z_tilde
+    # Partition the data according to classes
+    partition = {}
 
+    ms = set(Y[:,-2]); As = set(Y[:,-1])
+    for m in ms:
+        partition[f"m{m}"] = np.copy(Z_tilde[Y[:,-2]==m])
+    
+    for a in As:
+        partition[f'a{a}'] = np.copy(Z_tilde[Y[:,-1]==a])
+
+    # Perform swops
+    Z_tilde_swapped = np.copy(Z_tilde)
+    for i in range(len(Z_tilde)):
+        # Determine the material and action class
+        m_i = Y[i,-2]; a_i = Y[i, -1]
+
+        # Baseline
+        if baseline:
+            # In baseline mode swaps will only be made for the indicated factors with instances with the same class
+            if 'material' in switch_factors:
+                # Sample from the set of points with same material
+                Z_tilde_swapped[i, -2] = random.choice(partition[f"m{m_i}"])[-2]
+            if 'action' in switch_factors:
+                # Sample from the set of points with same action
+                Z_tilde_swapped[i, -1] = random.choice(partition[f"a{a_i}"])[-1]
+        else:
+            # In experimental mode swaps will only be made for indicated factors with instances that have a different class
+            if 'material' in switch_factors:
+                # Sample from the set of points with other material
+                m_j = random.choice(list(ms.difference({m_i})))
+                Z_tilde_swapped[i, -2] = random.choice(partition[f"m{m_j}"])[-2]
+            if 'action' in switch_factors:
+                # Sample from the set of points with other action
+                a_j = random.choice(list(As.difference({a_i})))
+                Z_tilde_swapped[i, -1] = random.choice(partition[f"a{a_j}"])[-1]
+      
     # Invert flow net
     Z_swapped = flow_network.invert(Z_tilde_swapped)
 
@@ -148,13 +189,8 @@ def latent_transfer(Z_prime: np.ndarray, dimensions_per_factor: List[int], switc
     Z_prime_swapped = pre_scaler.inverse_transform(pca.inverse_transform(post_scaler.inverse_transform(Z_prime_swapped)))
 
     # Continue processing through yamnet
-    Q = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime_swapped, layer_index_to_shape[layer_index]), layer_index=layer_index).numpy()
+    Q = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime_swapped, layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
     
-    # Due to swopping the first half of instances with the second half, Q now needs to be swopped too such that a given instance in Q approximates the instance of same index in P
-    tmp = np.copy(Q[:instance_count//2,:])
-    Q[:instance_count//2,:] = Q[instance_count//2:,:]
-    Q[instance_count//2:,:] = tmp
-
     # Outputs
     return P, Q
 
@@ -261,14 +297,14 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
 # Configuration
 inspection_layer_index = 9
 batch_size = 512
-latent_transfer_sample_size = 2*128
+latent_transfer_sample_size = 2**12 # Needs to be large enough for samples of all conditions to appear
 np.random.seed(865)
 tf.keras.utils.set_random_seed(895)
 random.seed(248)
 stage_count = 5
 epoch_count = 10
 dimensions_per_factor = [62,1,1]
-materials_to_keep = [0,1,2,4]; actions_to_keep = [0,3]
+materials_to_keep = [0,1,2,3,4,5]; actions_to_keep = [0,1,2,3]
 materials_to_drop = list(range(6))
 for m in reversed(materials_to_keep): materials_to_drop.remove(m)
 actions_to_drop = list(range(4))
@@ -297,11 +333,18 @@ flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage
 flow_network.load_weights(flow_model_save_path)
 
 # Evaluate
-#scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
+scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
 
 # Load a sample of even size from yamnets latent space 
 Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=original_data_path, sample_size=latent_transfer_sample_size)
-    
+for material in materials_to_drop:
+    Z_prime_sample = Z_prime_sample[Y_sample[:,-2] != material]
+    Y_sample = Y_sample[Y_sample[:,-2] != material]
+
+for action in actions_to_drop:
+    Z_prime_sample = Z_prime_sample[Y_sample[:,-1] != action]
+    Y_sample = Y_sample[Y_sample[:,-1] != action]
+
 with open(os.path.join(pca_model_path, 'Pre PCA Standard Scaler.pkl'), 'rb') as file_handle:
     pre_scaler = pkl.load(file_handle)
 with open(os.path.join(pca_model_path, f'Complete PCA.pkl'), 'rb') as file_handle:
@@ -309,4 +352,4 @@ with open(os.path.join(pca_model_path, f'Complete PCA.pkl'), 'rb') as file_handl
 with open(os.path.join(pca_model_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
     post_scaler = pkl.load(file_handle)
 
-violinplot_latent_transfer(Z_prime=Z_prime_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Violins.png"))
+plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Violins.png"))

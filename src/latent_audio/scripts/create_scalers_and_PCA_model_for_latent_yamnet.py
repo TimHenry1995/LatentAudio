@@ -26,7 +26,7 @@ import random
 X_folder = os.path.join('data','latent yamnet','original') # The latent yamnet data
 PCA_folder = os.path.join('models','Scaler and PCA')
 
-layer_index = 9
+layer_index = 0
 random.seed(42)
 X_layer_folder = os.path.join(X_folder, f'Layer {layer_index}')
 PCA_layer_folder = os.path.join(PCA_folder, f"Layer {layer_index}")
