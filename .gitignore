@@ -10,6 +10,9 @@ __pycache__/
 data/latent yamnet
 data/sound slices for humans
 
+# Models
+models/Scaler and PCA
+
 # Mac OSX
 .DS_Store
 
