@@ -125,10 +125,10 @@ if __name__ == "__main__":
     np.random.seed(865)
     tf.keras.utils.set_random_seed(895)
     random.seed(248)
-    stage_count = 5
-    epoch_count = 2
+    stage_count = 3
+    epoch_count = 10
     dimensions_per_factor = [62,1,1]
-    materials_to_keep = [0,1]; actions_to_keep = [0,1]
+    materials_to_keep = [0,2]; actions_to_keep = [0,1]
     materials_to_drop = list(range(6))
     for m in reversed(materials_to_keep): materials_to_drop.remove(m)
     actions_to_drop = list(range(4))

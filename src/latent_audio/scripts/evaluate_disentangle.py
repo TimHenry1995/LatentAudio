@@ -12,6 +12,7 @@ from gyoza.modelling import flow_layers as mfl
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
 import random
+from scipy import stats
 import pickle as pkl
 
 # Define some functions
@@ -125,95 +126,130 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
     plt.savefig(plot_save_path)
     plt.show()
 
-def plot_permutation_test2(Z_prime: np.ndarray, Y: np.ndarray, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str) -> None:
+def plot_permutation_test_2(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str) -> None:
 
+    inverse_sigmoid = lambda x : np.log(1 / (1 + np.exp(-x)))
     entropy = lambda P, Q: P*np.log(Q)
-    dissimilarity_function = lambda P, Q: - np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
-    plt.figure(figsize=(10,6)); plt.suptitle('Latent Transfer')
+    dissimilarity_function = lambda P, Q: np.sqrt(np.sum((inverse_sigmoid(P) - inverse_sigmoid(Q))**2, axis=1))#- np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
+    plt.figure(figsize=(10,6)); plt.suptitle('   Latent Transfer')
     b = 1
     x_min = np.finfo(np.float32).max
     x_max = np.finfo(np.float32).min
     
-    for factor_name, switch_factors in swops.items():
-        # Compute probability distributions
-        P, M, Q, M_to_P, M_to_Q = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
+    for factor_name, transfer_dimensions in {'Material':[-2,-1],'Action':[-1,-2]}.items():
+        current_dimension = transfer_dimensions[0]
+        other_dimension = transfer_dimensions[1]
+
+        # initialize
+        H_PM = np.array([])
+        H_P_M_to_P = np.array([])
+        H_P_M_to_Q = np.array([])
+
+        for s in range(10):
+            # Shuffle
+            indices = list(range(Z_prime.shape[0])); np.random.shuffle(indices)
+            Z_prime = Z_prime[indices]; Y = Y[indices]
+            for c in set(Y[:,other_dimension]):
+
+                # Compute probability distributions
+                P, M, M_to_P, M_to_Q = latent_transfer_2(Z_prime=Z_prime[Y[:,other_dimension]==c], Y=Y[Y[:,other_dimension]==c], dimensions_per_factor=dimensions_per_factor, transfer_dimension=current_dimension, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
+                
+                # Compute dissimilarities
+                H_PM = np.concatenate([H_PM, dissimilarity_function(P,M)])
+                H_P_M_to_P = np.concatenate([H_P_M_to_P, dissimilarity_function(P,M_to_P)]) 
+                H_P_M_to_Q = np.concatenate([H_P_M_to_Q, dissimilarity_function(P,M_to_Q)]) 
         
-        # Compute dissimilarities
-        H_PM = np.concatenate([dissimilarity_function(P,M), dissimilarity_function(Q,M)]) # By symmetry, HQM and HPM can be merged
-        H_P_M_to_P = np.concatenate([dissimilarity_function(P,M_to_P), dissimilarity_function(Q,M_to_Q)]) # Again, merging due to symmetry
-        H_P_M_to_Q = np.concatenate([dissimilarity_function(P,M_to_Q), dissimilarity_function(Q,M_to_P)]) # Again, merging due to symmetry
-        
+        # Adjust sample size for t test
+        if b == 1: 
+           sample_size_mp = 351
+           sample_size_mq = 121 # This sample size was calculated using a small initial sample and this website https://sample-size.net/sample-size-study-paired-t-test/
+        if b == 2: 
+            sample_size_mp = 2138
+            sample_size_mq = 199
+        assert len(H_PM) > max(sample_size_mp, sample_size_mq), "Sample sizes were too small to do a significance test." # The others Hs have the same number of instances
+        indices = random.sample(range(len(H_PM)), max(sample_size_mp, sample_size_mq))
+
         # Plot
         plt.subplot(2,1,b); plt.title(factor_name)
-        plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)
-        plt.yticks([1,2], ['Within Class','Between Class'], rotation=90, va='center')
-        x_min = min(x_min, plt.xlim()[0])
-        x_max = max(x_max, plt.xlim()[1])
-        
-        b+=1
-    
-    # Set labels and range
-    plt.xlabel(r"Crossentropy of $P_d$ and $P_r$")
-    for i in range (1,b): 
-        plt.subplot(b-1,1,i); plt.xlim([x_min, x_max])
+        means = [np.mean(H_PM),np.mean(H_P_M_to_P),np.mean(H_P_M_to_Q)]
+        errors = [np.std(H_PM)/ np.sqrt(len(H_PM)), np.std(H_P_M_to_P)/ np.sqrt(len(H_P_M_to_P)), np.std(H_P_M_to_Q)/ np.sqrt(len(H_P_M_to_Q))]
+        plt.bar([1,2,3], means, color=[0.1,0.1,0.1,0.1], edgecolor='black')
+        plt.xticks([1,2,3],['P,M','P,M->P','P,M->Q'])
         plt.grid(alpha=0.25)
-        if i < b-1: plt.gca().tick_params(labelbottom=False) 
+        plt.ylabel('Mean Squred Error of \nYamnet Output Logit')
+        plt.ylim(means[1]-1.5*errors[1], means[2]+1.5*errors[2])
+
+        # Significance tests
+        print("H_PM and H_P_M_to_P have test results:")
+        print(stats.ttest_rel(H_PM[indices[:sample_size_mp]], H_P_M_to_P[indices[:sample_size_mp]]))
+        print("H_PM and H_P_M_to_Q have test results:")
+        print(stats.ttest_rel(H_PM[indices[:sample_size_mq]], H_P_M_to_Q[indices[:sample_size_mq]]))
+
+        if stats.ttest_rel(H_PM[indices[:sample_size_mp]], H_P_M_to_P[indices[:sample_size_mp]]).pvalue <= 0.025: # Bonferroni corrected
+            plt.annotate('*', (1.99, means[1]+1.1*errors[1]))
+        else: plt.annotate('o', (1.99, means[1]+1.1*errors[1]))
+        if stats.ttest_rel(H_PM[indices[:sample_size_mq]], H_P_M_to_Q[indices[:sample_size_mq]]).pvalue <= 0.025: # Bonferroni corrected
+            plt.annotate('*', (2.99, means[2]+1.1*errors[2]))
+        else: plt.annotate('o', (2.99, means[2]+1.1*errors[2]))
+        b+=1
         
-    
+    plt.tight_layout()
     plt.savefig(plot_save_path)
     plt.show()
 
-def latent_transfer_2(Z_prime: np.ndarray, Y: np.ndarray, transfer_dimension: int, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
+def latent_transfer_2(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], transfer_dimension: int, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
 
-    instance_count = Z_prime.shape[0]
-    
     # 1. Disentangle
 
     # 1.1 Apply standard scalers and pca
-    Z_prime = post_scaler.transform(pca.transform(pre_scaler.transform(Z_prime)))
+    Z_prime_pca = post_scaler.transform(pca.transform(pre_scaler.transform(Z_prime)))
 
     # 1.2 Pass the top few dimensions through flow net
     dimension_count = np.sum(dimensions_per_factor)
-    Z_tilde = flow_network(Z_prime[:,:dimension_count]).numpy()
+    Z_tilde = flow_network(Z_prime_pca[:,:dimension_count]).numpy()
 
     # Split data into 3 tertiles
-    t12, t23 = np.quantile(Z_tilde[:,transfer_dimension], [0.33, 0.67]) # Boundaries of tertiles
-    Q_indices = np.where(Z_tilde[:, transfer_dimension] <= t12)
-    M_indices = np.where(np.logical_and(t12 < Z_tilde[:,transfer_dimension], Z_tilde[:,transfer_dimension] <= t23))
-    P_indices = np.where(t23 < Z_tilde[:,transfer_dimension])
-    cutoff = np.min([len(Q_indices), len(M_indices), len(P_indices)]) # Crop all to equal length
-    Q_indices = Q_indices[:cutoff]
-    M_indices = M_indices[:cutoff]
-    P_indices = P_indices[:cutoff]
+    cs=list(set(Y[:,transfer_dimension])); cs=sorted(cs); random.shuffle(cs); p = cs[0]; q = cs[1] # Choose a random class for p and q
+    mean = np.mean(Z_tilde[:, transfer_dimension])
+    t12, t23 = mean-0.2, mean+0.2
+    Q_indices = np.where(np.logical_and(Y[:,transfer_dimension] == q, # Instance needs to belong to Qs class 
+                                        np.abs(Z_tilde[:,transfer_dimension] - np.mean(Z_tilde[Y[:,transfer_dimension] == q,transfer_dimension])) < 0.3))[0] # Instance needs to be close to centre of q
+    M_indices = np.where(np.logical_and(t12 < Z_tilde[:,transfer_dimension], Z_tilde[:,transfer_dimension] <= t23, Y[:,transfer_dimension]==p))[0] # Points that are between p and q but belong to p
+    P_indices = np.where(np.logical_and(Y[:,transfer_dimension] == p, # Instance needs to belong to ps class 
+                                        np.abs(Z_tilde[:,transfer_dimension] - np.mean(Z_tilde[Y[:,transfer_dimension] == p,transfer_dimension])) < 0.3))[0] # Instance needs to be close to centre of p
+    
+    instance_count = np.min([len(Q_indices), len(M_indices), len(P_indices)]) # Crop all to equal length
+    Q_indices = Q_indices[:instance_count]
+    M_indices = M_indices[:instance_count]
+    P_indices = P_indices[:instance_count]
 
-    # Compute Q,M,P via yamnet
+    # 2. Compute M,P via yamnet
     layer_index_to_shape = [ [instance_count, 48, 32, 32],  [instance_count, 48, 32, 64],  [instance_count, 24, 16, 128],  [instance_count, 24, 16, 128],  [instance_count, 12, 8, 256],  [instance_count, 12, 8, 256], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 3, 2, 1024], [instance_count, 3, 2, 1024]]
-    Q = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime[Q_indices], layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
     M = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime[M_indices], layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
     P = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime[P_indices], layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
     
-    # Perform latent transfer from M to Q and to P
+    # 3. Perform latent transfer from M to Q and to P
     Z_tilde_M_to_Q = np.copy(Z_tilde[M_indices])
     Z_tilde_M_to_Q[:, transfer_dimension] = Z_tilde[Q_indices, transfer_dimension]
     Z_tilde_M_to_P = np.copy(Z_tilde[M_indices])
     Z_tilde_M_to_P[:, transfer_dimension] = Z_tilde[P_indices, transfer_dimension]
 
-    # Replace top few dimensions with inverse
-    Z_prime_M_to_Q = np.copy(Z_prime[M_indices])
+    # 4. Replace top few dimensions with inverse
+    Z_prime_M_to_Q = np.copy(Z_prime_pca[M_indices])
     Z_prime_M_to_Q[:,:dimension_count] = flow_network.invert(Z_tilde_M_to_Q)
-    Z_prime_M_to_P = np.copy(Z_prime[M_indices])
+    Z_prime_M_to_P = np.copy(Z_prime_pca[M_indices])
     Z_prime_M_to_P[:,:dimension_count] = flow_network.invert(Z_tilde_M_to_P)
 
-    # Invert full pca, invert scaler
+    # 5. Invert full pca, invert scaler
     Z_prime_M_to_Q = pre_scaler.inverse_transform(pca.inverse_transform(post_scaler.inverse_transform(Z_prime_M_to_Q)))
     Z_prime_M_to_P = pre_scaler.inverse_transform(pca.inverse_transform(post_scaler.inverse_transform(Z_prime_M_to_P)))
     
-    # Continue processing through yamnet
+    # 6. Continue processing through yamnet
     M_to_Q = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime_M_to_Q, layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
     M_to_P = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime_M_to_P, layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
     
     # Outputs
-    return P, M, Q, M_to_P, M_to_Q
+    return P, M, M_to_P, M_to_Q
 
 def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
 
@@ -386,14 +422,14 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
 # Configuration
 inspection_layer_index = 9
 batch_size = 512
-latent_transfer_sample_size = 2**12 # Needs to be large enough for samples of all conditions to appear
+latent_transfer_sample_size = 2**14 # Needs to be large enough for samples of all conditions to appear
 np.random.seed(865)
 tf.keras.utils.set_random_seed(895)
 random.seed(248)
 stage_count = 5
 epoch_count = 10
 dimensions_per_factor = [62,1,1]
-materials_to_keep = [0,1,2,3,4,5]; actions_to_keep = [0,1,2,3]
+materials_to_keep = [1,4]; actions_to_keep = [0,1]
 materials_to_drop = list(range(6))
 for m in reversed(materials_to_keep): materials_to_drop.remove(m)
 actions_to_drop = list(range(4))
@@ -416,13 +452,20 @@ train_iterator, test_iterator, batch_count, Z_train, Z_test, Y_train, Y_test = l
 Z_ab_sample, Y_ab_sample = next(train_iterator) # Sample
 
 print("The data is fed to the model in batches of shape:\n","Z: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_sample: (instance count, factor count): \t', Y_ab_sample.shape)
-
+H_PM and H_P_M_to_P have test results:
+TtestResult(statistic=3.900618253211333, pvalue=0.00011504492833210942, df=350)
+H_PM and H_P_M_to_Q have test results:
+TtestResult(statistic=-0.1955938777042244, pvalue=0.8452588649935906, df=120)
+H_PM and H_P_M_to_P have test results:
+TtestResult(statistic=4.634184838306092, pvalue=3.79939393455864e-06, df=2137)
+H_PM and H_P_M_to_Q have test results:
+TtestResult(statistic=-1.2918221545323214, pvalue=0.19792458052800427, df=198)
 # Create network
 flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
 flow_network.load_weights(flow_model_save_path)
 
 # Evaluate
-scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
+#scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
 
 # Load a sample of even size from yamnets latent space 
 Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=original_data_path, sample_size=latent_transfer_sample_size)
@@ -441,4 +484,4 @@ with open(os.path.join(pca_model_path, f'Complete PCA.pkl'), 'rb') as file_handl
 with open(os.path.join(pca_model_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
     post_scaler = pkl.load(file_handle)
 
-plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))
+plot_permutation_test_2(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))
