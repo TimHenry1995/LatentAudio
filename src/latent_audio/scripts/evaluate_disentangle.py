@@ -124,7 +124,96 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
     
     plt.savefig(plot_save_path)
     plt.show()
+
+def plot_permutation_test2(Z_prime: np.ndarray, Y: np.ndarray, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str) -> None:
+
+    entropy = lambda P, Q: P*np.log(Q)
+    dissimilarity_function = lambda P, Q: - np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
+    plt.figure(figsize=(10,6)); plt.suptitle('Latent Transfer')
+    b = 1
+    x_min = np.finfo(np.float32).max
+    x_max = np.finfo(np.float32).min
     
+    for factor_name, switch_factors in swops.items():
+        # Compute probability distributions
+        P, M, Q, M_to_P, M_to_Q = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
+        
+        # Compute dissimilarities
+        H_PM = np.concatenate([dissimilarity_function(P,M), dissimilarity_function(Q,M)]) # By symmetry, HQM and HPM can be merged
+        H_P_M_to_P = np.concatenate([dissimilarity_function(P,M_to_P), dissimilarity_function(Q,M_to_Q)]) # Again, merging due to symmetry
+        H_P_M_to_Q = np.concatenate([dissimilarity_function(P,M_to_Q), dissimilarity_function(Q,M_to_P)]) # Again, merging due to symmetry
+        
+        # Plot
+        plt.subplot(2,1,b); plt.title(factor_name)
+        plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)
+        plt.yticks([1,2], ['Within Class','Between Class'], rotation=90, va='center')
+        x_min = min(x_min, plt.xlim()[0])
+        x_max = max(x_max, plt.xlim()[1])
+        
+        b+=1
+    
+    # Set labels and range
+    plt.xlabel(r"Crossentropy of $P_d$ and $P_r$")
+    for i in range (1,b): 
+        plt.subplot(b-1,1,i); plt.xlim([x_min, x_max])
+        plt.grid(alpha=0.25)
+        if i < b-1: plt.gca().tick_params(labelbottom=False) 
+        
+    
+    plt.savefig(plot_save_path)
+    plt.show()
+
+def latent_transfer_2(Z_prime: np.ndarray, Y: np.ndarray, transfer_dimension: int, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
+
+    instance_count = Z_prime.shape[0]
+    
+    # 1. Disentangle
+
+    # 1.1 Apply standard scalers and pca
+    Z_prime = post_scaler.transform(pca.transform(pre_scaler.transform(Z_prime)))
+
+    # 1.2 Pass the top few dimensions through flow net
+    dimension_count = np.sum(dimensions_per_factor)
+    Z_tilde = flow_network(Z_prime[:,:dimension_count]).numpy()
+
+    # Split data into 3 tertiles
+    t12, t23 = np.quantile(Z_tilde[:,transfer_dimension], [0.33, 0.67]) # Boundaries of tertiles
+    Q_indices = np.where(Z_tilde[:, transfer_dimension] <= t12)
+    M_indices = np.where(np.logical_and(t12 < Z_tilde[:,transfer_dimension], Z_tilde[:,transfer_dimension] <= t23))
+    P_indices = np.where(t23 < Z_tilde[:,transfer_dimension])
+    cutoff = np.min([len(Q_indices), len(M_indices), len(P_indices)]) # Crop all to equal length
+    Q_indices = Q_indices[:cutoff]
+    M_indices = M_indices[:cutoff]
+    P_indices = P_indices[:cutoff]
+
+    # Compute Q,M,P via yamnet
+    layer_index_to_shape = [ [instance_count, 48, 32, 32],  [instance_count, 48, 32, 64],  [instance_count, 24, 16, 128],  [instance_count, 24, 16, 128],  [instance_count, 12, 8, 256],  [instance_count, 12, 8, 256], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 3, 2, 1024], [instance_count, 3, 2, 1024]]
+    Q = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime[Q_indices], layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
+    M = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime[M_indices], layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
+    P = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime[P_indices], layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
+    
+    # Perform latent transfer from M to Q and to P
+    Z_tilde_M_to_Q = np.copy(Z_tilde[M_indices])
+    Z_tilde_M_to_Q[:, transfer_dimension] = Z_tilde[Q_indices, transfer_dimension]
+    Z_tilde_M_to_P = np.copy(Z_tilde[M_indices])
+    Z_tilde_M_to_P[:, transfer_dimension] = Z_tilde[P_indices, transfer_dimension]
+
+    # Replace top few dimensions with inverse
+    Z_prime_M_to_Q = np.copy(Z_prime[M_indices])
+    Z_prime_M_to_Q[:,:dimension_count] = flow_network.invert(Z_tilde_M_to_Q)
+    Z_prime_M_to_P = np.copy(Z_prime[M_indices])
+    Z_prime_M_to_P[:,:dimension_count] = flow_network.invert(Z_tilde_M_to_P)
+
+    # Invert full pca, invert scaler
+    Z_prime_M_to_Q = pre_scaler.inverse_transform(pca.inverse_transform(post_scaler.inverse_transform(Z_prime_M_to_Q)))
+    Z_prime_M_to_P = pre_scaler.inverse_transform(pca.inverse_transform(post_scaler.inverse_transform(Z_prime_M_to_P)))
+    
+    # Continue processing through yamnet
+    M_to_Q = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime_M_to_Q, layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
+    M_to_P = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime_M_to_P, layer_index_to_shape[layer_index]), layer_index=layer_index+1).numpy()
+    
+    # Outputs
+    return P, M, Q, M_to_P, M_to_Q
 
 def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
 
