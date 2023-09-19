@@ -131,7 +131,7 @@ def plot_permutation_test_2(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_f
     inverse_sigmoid = lambda x : np.log(1 / (1 + np.exp(-x)))
     entropy = lambda P, Q: P*np.log(Q)
     dissimilarity_function = lambda P, Q: np.sqrt(np.sum((inverse_sigmoid(P) - inverse_sigmoid(Q))**2, axis=1))#- np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
-    plt.figure(figsize=(10,6)); plt.suptitle('   Latent Transfer')
+    plt.figure(figsize=(10,6)); plt.suptitle('\tLatent Transfer')
     b = 1
     x_min = np.finfo(np.float32).max
     x_max = np.finfo(np.float32).min
@@ -159,16 +159,24 @@ def plot_permutation_test_2(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_f
                 H_P_M_to_P = np.concatenate([H_P_M_to_P, dissimilarity_function(P,M_to_P)]) 
                 H_P_M_to_Q = np.concatenate([H_P_M_to_Q, dissimilarity_function(P,M_to_Q)]) 
         
-        # Adjust sample size for t test
+        # Adjust sample size for t test.  This sample size was calculated using a small initial sample and this website https://sample-size.net/sample-size-study-paired-t-test/
         if b == 1: 
-           sample_size_mp = 351
-           sample_size_mq = 121 # This sample size was calculated using a small initial sample and this website https://sample-size.net/sample-size-study-paired-t-test/
+           sample_size_mp = 199 # alpha one tailed 0.025, beta=0.2, effect size = 0.02, std of change = 0.1
+           sample_size_mq = 199 # alpha one tailed 0.025, beta=0.2, effect size = 0.02, std of change = 0.1
         if b == 2: 
-            sample_size_mp = 2138
-            sample_size_mq = 199
+            sample_size_mp = 787 # alpha one tailed 0.025, beta=0.2, effect size = 0.005, std of change = 0.05
+            sample_size_mq = 309 #  alpha one tailed 0.025, beta=0.2, effect size = 0.008, std of change = 0.05
         assert len(H_PM) > max(sample_size_mp, sample_size_mq), "Sample sizes were too small to do a significance test." # The others Hs have the same number of instances
         indices = random.sample(range(len(H_PM)), max(sample_size_mp, sample_size_mq))
-
+        '''
+        H_PM and H_P_M_to_P have test results:
+TtestResult(statistic=4.562010678256846, pvalue=8.873686878414838e-06, df=198)
+H_PM and H_P_M_to_Q have test results:
+TtestResult(statistic=-2.8269841308183516, pvalue=0.005181231511157646, df=198)
+H_PM and H_P_M_to_P have test results:
+TtestResult(statistic=1.6386363857835877, pvalue=0.1016892024009523, df=786)
+H_PM and H_P_M_to_Q have test results:
+TtestResult(statistic=-2.0608555263997435, pvalue=0.04015613967209464, df=308)'''
         # Plot
         plt.subplot(2,1,b); plt.title(factor_name)
         means = [np.mean(H_PM),np.mean(H_P_M_to_P),np.mean(H_P_M_to_Q)]
@@ -177,7 +185,7 @@ def plot_permutation_test_2(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_f
         plt.xticks([1,2,3],['P,M','P,M->P','P,M->Q'])
         plt.grid(alpha=0.25)
         plt.ylabel('Mean Squred Error of \nYamnet Output Logit')
-        plt.ylim(means[1]-1.5*errors[1], means[2]+1.5*errors[2])
+        plt.ylim(means[1]-1.8*errors[1], means[2]+1.5*errors[2])
 
         # Significance tests
         print("H_PM and H_P_M_to_P have test results:")
@@ -429,7 +437,7 @@ random.seed(248)
 stage_count = 5
 epoch_count = 10
 dimensions_per_factor = [62,1,1]
-materials_to_keep = [1,4]; actions_to_keep = [0,1]
+materials_to_keep = [1,4]; actions_to_keep = [0,3]
 materials_to_drop = list(range(6))
 for m in reversed(materials_to_keep): materials_to_drop.remove(m)
 actions_to_drop = list(range(4))
@@ -452,20 +460,13 @@ train_iterator, test_iterator, batch_count, Z_train, Z_test, Y_train, Y_test = l
 Z_ab_sample, Y_ab_sample = next(train_iterator) # Sample
 
 print("The data is fed to the model in batches of shape:\n","Z: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_sample: (instance count, factor count): \t', Y_ab_sample.shape)
-H_PM and H_P_M_to_P have test results:
-TtestResult(statistic=3.900618253211333, pvalue=0.00011504492833210942, df=350)
-H_PM and H_P_M_to_Q have test results:
-TtestResult(statistic=-0.1955938777042244, pvalue=0.8452588649935906, df=120)
-H_PM and H_P_M_to_P have test results:
-TtestResult(statistic=4.634184838306092, pvalue=3.79939393455864e-06, df=2137)
-H_PM and H_P_M_to_Q have test results:
-TtestResult(statistic=-1.2918221545323214, pvalue=0.19792458052800427, df=198)
+
 # Create network
 flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
 flow_network.load_weights(flow_model_save_path)
 
 # Evaluate
-#scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
+scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
 
 # Load a sample of even size from yamnets latent space 
 Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=original_data_path, sample_size=latent_transfer_sample_size)
