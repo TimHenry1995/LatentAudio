@@ -170,13 +170,13 @@ def plot_permutation_test_2(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_f
         indices = random.sample(range(len(H_PM)), max(sample_size_mp, sample_size_mq))
         '''
         H_PM and H_P_M_to_P have test results:
-TtestResult(statistic=4.562010678256846, pvalue=8.873686878414838e-06, df=198)
-H_PM and H_P_M_to_Q have test results:
-TtestResult(statistic=-2.8269841308183516, pvalue=0.005181231511157646, df=198)
-H_PM and H_P_M_to_P have test results:
-TtestResult(statistic=1.6386363857835877, pvalue=0.1016892024009523, df=786)
-H_PM and H_P_M_to_Q have test results:
-TtestResult(statistic=-2.0608555263997435, pvalue=0.04015613967209464, df=308)'''
+        TtestResult(statistic=4.562010678256846, pvalue=8.873686878414838e-06, df=198)
+        H_PM and H_P_M_to_Q have test results:
+        TtestResult(statistic=-2.8269841308183516, pvalue=0.005181231511157646, df=198)
+        H_PM and H_P_M_to_P have test results:
+        TtestResult(statistic=1.6386363857835877, pvalue=0.1016892024009523, df=786)
+        H_PM and H_P_M_to_Q have test results:
+        TtestResult(statistic=-2.0608555263997435, pvalue=0.04015613967209464, df=308)'''
         # Plot
         plt.subplot(2,1,b); plt.title(factor_name)
         means = [np.mean(H_PM),np.mean(H_P_M_to_P),np.mean(H_P_M_to_Q)]
@@ -327,45 +327,17 @@ def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: L
     # Outputs
     return P, Q
 
-def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tuple[float, float], manifold_function: Callable, manifold_name:str, layer_steps: List[int], step_titles: List[str]):
-    """Plots for each layer (or rather step of consecutive layers) the contribution to the data transformation. The plot is strucutred into three rows.
-    The first row shows a stacked bar chart whose bottom segment is the contribution due to affine transformation and the top segment is the contribution
-    due to higher order transformation. To better understand the mechanisms behind these contributions there is a pictogram in the bottom row for the
-    actual affine transformation and in the middle row for the remaining higher order part. This separation is done to understand the complexity of the
-    transformation, whereby affine is considered simple and higher order is considered complex. The decomposition into affine and higher order is obtained
-    by means of a first order `Maclaurin series <https://en.wikipedia.org/wiki/Taylor_series#Taylor_series_in_several_variables>`_.
-
-    :param network: The network whose transfromation shall be visualized. It is expecetd to map 1 dimensional manifolds from the real 2-dimensional
-      plane to the real 2-dimensional plane.
-    :type network: :class:`gyoza.modelling.flow_layers.SequentialFlowNetwork`
-    :param s_range: The lower and upper bounds for the position along the manifold, respectively.
-    :type s_range: Tuple[float, float]
-    :param manifold_function: A function that maps from position along manifold to coordinates on the manifold in the real two dimensional plane.
-    :type manifold_function: :class:`Callable`
-    :param manifold_name: The name of the manifold used for the figure title.
-    :type manifold_name: str
-    :param layer_steps: A list of steps across layers of the ``network``. If, for instance, the network has 7 layers and visualization shall be done for
-      after the 1., 3. and 7, then ``layer_steps`` shall be set to [1,3,7]. The minimum entry shall be 1, then maximum entry shall be the number of layers
-      in ``network`` and all entries shall be strictly increasing.
-    :type layer_steps: List[int]
-    :param step_titles: The titles associated with each step in ``layer_steps``. Used as titles in the figure.
-    :type step_titles: List[str]
-    """
-
+def stage_wise_maclaurin(network: mfl.SequentialFlowNetwork, Z: np.ndarray, y: np.ndarray, layer_steps: List[int], step_titles: List[str], plot_save_path: str):
+    
     # Prepare plot
-    #plt.figure(figsize=(12,3.5));
     layer_steps = [0] + layer_steps
     K = len(step_titles)
-    fig, axs = plt.subplots(3, 1+K, figsize=(0.8+K,5), gridspec_kw={'height_ratios': [2,1,1], 'width_ratios':[0.3]+[1]*K})
-    plt.suptitle(rf'Contribution per Layer on ${manifold_name}$')
-
-    # Sample from s range
-    S = np.linspace(s_range[0], s_range[1], len(gum.color_palette), dtype=tf.keras.backend.floatx())
-    z_1, z_2 = manifold_function(S); Z = np.concatenate([z_1[:, np.newaxis], z_2[:, np.newaxis]], axis=1)
+    fig, axs = plt.subplots(3, 1+K, figsize=(0.8+K,5), gridspec_kw={'height_ratios': [2,1,1], 'width_ratios':[0.3]+[1]*K}, dpi=4*96)
+    plt.suptitle(rf'Sequential Maclaurin Decomposition Of Flow Model')
     max_bar_height = 0
 
     # Plot annotations on left
-    gray = [0.8,0.8,0.8]
+    gray = [0.5,0.5,0.5]
     #plt.subplot(3,1+K,1); plt.axis('off')
     plt.subplot(3,1+K,1+K+1); plt.bar([''],[1], color=gray, edgecolor='black', hatch='oo'); plt.ylim(0,1); plt.xticks([]); plt.yticks([]); plt.ylabel('Higher Order')
     plt.subplot(3,1+K,2*(1+K)+1); plt.bar([''],[1], color=gray, edgecolor='black', hatch='///'); plt.ylim(0,1); plt.xticks([]); plt.yticks([]); plt.ylabel('Affine')
@@ -384,7 +356,7 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
             Z_tilde = layer(Z_tilde) # Shape == [instance count, N]
 
         J = tf.squeeze(tape.jacobian(c, origin)) # Shape == [N z_tilde dimensions, N z dimensions]. The layer's linear combination of input dimensions
-
+        
         # Compute approximation error (contribution of higher order terms in the Maclaurin series)
         prediction = c + tf.linalg.matmul(Z, tf.transpose(J))
         P = prediction - Z # Shape == [instance count, N]. Arrows from Z to prediction
@@ -393,25 +365,26 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
         # 2. Plot
         # 2.1 Bars
         plt.subplot(3,1+K,k+1); plt.title(step_titles[k-1], fontsize=10)
-        E_norm = np.mean(np.sqrt(np.sum(E**2, axis=1)))
-        P_norm = np.mean(np.sqrt(np.sum(P**2, axis=1)))
+        E_norm = np.mean(np.sqrt(np.sum(E[:,-2:]**2, axis=1)))
+        P_norm = np.mean(np.sqrt(np.sum(P[:,-2:]**2, axis=1)))
         plt.bar([''],[E_norm+P_norm], color = gray, edgecolor='black', hatch='oo')
         plt.bar([''],[P_norm], color = gray, edgecolor='black', hatch='///')
         max_bar_height = max(max_bar_height, E_norm+P_norm); plt.axis('off')
 
         # 2.1 Tails
         # 2.1.1 Error
-        plt.subplot(3,1+K,1+K+k+1)
-        plt.scatter(prediction[:,0], prediction[:,1], color=gray, marker='.',s=0.1)
-        plt.quiver(prediction[:,0], prediction[:,1], E[:,0], E[:,1], angles='xy', scale_units='xy', scale=1., color=gray, zorder=3)
-        plt.scatter(Z_tilde[:,0], Z_tilde[:,1], c=gum.color_palette/255.0, marker='.',s=1.5)
+        cs = list(set(y)); cs = sorted(cs)
+        plt.subplot(3,1+K,1+K+k+1); plt.gca().set_prop_cycle(None)
+        plt.scatter(prediction[:,-2], prediction[:,-1], color=gray, marker='.',s=0.1)
+        plt.quiver(prediction[:,-2], prediction[:,-1], E[:,-2], E[:,-1], angles='xy', scale_units='xy', scale=1., color=gray, zorder=1)
+        for c in cs: plt.scatter(Z_tilde.numpy()[y==c,0], Z_tilde.numpy()[y==c,1], marker='.',s=1)
         plt.axis('equal'); plt.xticks([]); plt.yticks([]); plt.xlim(1.3*np.array(plt.xlim())); plt.ylim(1.3*np.array(plt.ylim()))
 
         # 2.1.2 Prediction
-        plt.subplot(3,1+K,2*(1+K)+k+1)
-        plt.scatter(Z[:,0], Z[:,1], color=gray, marker='.',s=0.1)
-        plt.quiver(Z[:,0], Z[:,1], P[:,0], P[:,1], angles='xy', scale_units='xy', scale=1., color=gray, zorder=3)
-        plt.scatter(prediction[:,0], prediction[:,1], c=gum.color_palette/255.0, marker='.',s=1.5)
+        plt.subplot(3,1+K,2*(1+K)+k+1); plt.gca().set_prop_cycle(None)
+        plt.scatter(Z[:,-2], Z[:,-1], color=gray, marker='.',s=0.1)
+        plt.quiver(Z[:,-2], Z[:,-1], P[:,-2], P[:,-1], angles='xy', scale_units='xy', scale=1., color=gray, zorder=1)
+        for c in cs: plt.scatter(prediction.numpy()[y==c,-2], prediction.numpy()[y==c,-1], marker='.',s=1)
         plt.axis('equal'); plt.xticks([]); plt.yticks([]); plt.xlim(1.3*np.array(plt.xlim())); plt.ylim(1.3*np.array(plt.ylim()))
 
         # Prepare next iteration
@@ -424,20 +397,21 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
     ax.yaxis.tick_right(); ax.tick_params(axis="y",direction="in", pad=-12)
 
     plt.tight_layout()
+    plt.savefig(plot_save_path, dpi=4*96)
     plt.show()
 
 
 # Configuration
 inspection_layer_index = 9
 batch_size = 512
-latent_transfer_sample_size = 2**14 # Needs to be large enough for samples of all conditions to appear
+latent_transfer_sample_size = 2**13 # Needs to be large enough for samples of all conditions to appear
 np.random.seed(865)
 tf.keras.utils.set_random_seed(895)
 random.seed(248)
 stage_count = 5
 epoch_count = 10
 dimensions_per_factor = [62,1,1]
-materials_to_keep = [1,4]; actions_to_keep = [0,3]
+materials_to_keep = [0,1,2,4]; actions_to_keep = [0,3]
 materials_to_drop = list(range(6))
 for m in reversed(materials_to_keep): materials_to_drop.remove(m)
 actions_to_drop = list(range(4))
@@ -465,7 +439,12 @@ print("The data is fed to the model in batches of shape:\n","Z: (instance count,
 flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
 flow_network.load_weights(flow_model_save_path)
 
-# Evaluate
+# Maclaurin series for materials and actions
+indices = random.sample(range(len(Z_test)), 700)
+stage_wise_maclaurin(network=flow_network, Z= Z_test[indices], y= Y_test[indices,-2], layer_steps=[7*(s+1) for s in range(stage_count)], step_titles= [f'Stage {s+1}' for s in range(stage_count)], plot_save_path = os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Maclaurin materials.png"))
+stage_wise_maclaurin(network=flow_network, Z= Z_test[indices], y= Y_test[indices,-1], layer_steps=[7*(s+1) for s in range(stage_count)], step_titles= [f'Stage {s+1}' for s in range(stage_count)], plot_save_path = os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Maclaurin actions.png"))
+
+# Scatterplots
 scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
 
 # Load a sample of even size from yamnets latent space 

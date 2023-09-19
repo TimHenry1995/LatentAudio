@@ -100,6 +100,29 @@ for factor_index, factor_name, label_to_factor in zip([0,1], ['Material','Action
     _, p_max_to_last = stats.ttest_ind(KNN_accuracies[max_index][factor_index], KNN_accuracies[last_index][factor_index])
     _, p_first_to_last = stats.ttest_ind(KNN_accuracies[first_index][factor_index], KNN_accuracies[last_index][factor_index])
 
+    print(factor_name)
+    print("First to Max Test:")
+    print(stats.ttest_ind(KNN_accuracies[first_index][factor_index], KNN_accuracies[max_index][factor_index]))
+    print("Max to Last Test:")
+    print(stats.ttest_ind(KNN_accuracies[max_index][factor_index], KNN_accuracies[last_index][factor_index]))
+    print("First to Last Test:")
+    print(stats.ttest_ind(KNN_accuracies[first_index][factor_index], KNN_accuracies[last_index][factor_index]))
+    """
+    Material
+    First to Max Test:
+    TtestResult(statistic=-24.49502270898721, pvalue=2.8350567781716908e-15, df=18.0)
+    Max to Last Test:
+    TtestResult(statistic=15.667175554321526, pvalue=6.209791280475332e-12, df=18.0)
+    First to Last Test:
+    TtestResult(statistic=-4.208217189965692, pvalue=0.0005284838784518604, df=18.0)
+    Action
+    First to Max Test:
+    TtestResult(statistic=-15.569876329499271, pvalue=6.8959880525901215e-12, df=18.0)
+    Max to Last Test:
+    TtestResult(statistic=11.096090030512535, pvalue=1.7613527629498179e-09, df=18.0)
+    First to Last Test:
+    TtestResult(statistic=-7.999791634899012, pvalue=2.4516297697215936e-07, df=18.0)
+    """
     # Add lines and stars to KNN (with bonferroni correction)
     plt.hlines([1,1.05,1.1], xmin=[first_index+1, max_index+1, first_index+1], xmax=[max_index+1, last_index+1, last_index+1], color='black')
     if p_first_to_max*3 < 0.05: plt.text((first_index+max_index+2)/2, 1.01, '*')
