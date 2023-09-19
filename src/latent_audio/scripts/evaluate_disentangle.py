@@ -184,7 +184,7 @@ TtestResult(statistic=-2.0608555263997435, pvalue=0.04015613967209464, df=308)''
         plt.bar([1,2,3], means, color=[0.1,0.1,0.1,0.1], edgecolor='black')
         plt.xticks([1,2,3],['P,M','P,M->P','P,M->Q'])
         plt.grid(alpha=0.25)
-        plt.ylabel('Mean Squred Error of \nYamnet Output Logit')
+        plt.ylabel('Euclidean Distance of \nYamnet Output Logits')
         plt.ylim(means[1]-1.8*errors[1], means[2]+1.5*errors[2])
 
         # Significance tests
