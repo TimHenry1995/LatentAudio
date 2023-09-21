@@ -111,7 +111,7 @@ def plot_latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fact
     x_min = np.finfo(np.float32).max
     x_max = np.finfo(np.float32).min
     
-    for factor_name, transfer_dimensions in {'Material':[-2,-1],'Action':[-1,-2]}.items():
+    for factor_name, transfer_dimensions in {'Materials':[-2,-1],'Actions':[-1,-2]}.items():
         current_dimension = transfer_dimensions[0]
         other_dimension = transfer_dimensions[1]
 
@@ -252,7 +252,7 @@ def stage_wise_maclaurin(network: mfl.SequentialFlowNetwork, Z: np.ndarray, y: n
     max_bar_height = 0
 
     # Plot annotations on left
-    dark_gray = [0.3,0.3,0.3]
+    dark_gray = [0.6,0.6,0.6]
     light_gray = [0.8, 0.8, 0.8]
     #plt.subplot(3,1+K,1); plt.axis('off')
     plt.subplot(3,1+K,1+K+1); plt.bar([''],[1], color=light_gray, edgecolor='black', hatch='oo'); plt.ylim(0,1); plt.xticks([]); plt.yticks([]); plt.ylabel('Higher Order')
