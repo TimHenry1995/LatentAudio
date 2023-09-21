@@ -1,6 +1,16 @@
 """This script visualizes the model created by the disentangle script. It passes sample data through the model and shows in scatter plots how well the 
-matierial and action factors are disentangled. It furthermore visualizes the transformations of every stage of the flowmodel. It also performs latent transfer 
-in the disentangled space and investigates how this changes yamnet's output."""
+material and action factors are disentangled. It furthermore does a manipulation check where it tests to what extent knn can distinguish the latent
+representations after they were permuted in the disentangled space. It also performs latent transfer in the disentangled space and investigates how this 
+changes yamnet's output. Lastly, the script visualizes the transformations of every stage of the flowmodel.
+
+Requirements:
+- the disentangle script needs be run apriori
+
+Steps:
+- configure the model in the same was as in the disentangle script such that it can be loaded from disk
+- If only two action and two materials are selected, then all plots work
+- if more than two actions and materials are selected, then the latent transfer plot should be commented out
+"""
 
 from latent_audio.scripts import disentangle as lsd
 import latent_audio.utilities as utl
@@ -91,7 +101,7 @@ def scatter_plot_disentangled(flow_network, Z, Y, material_labels, action_labels
     plt.savefig(plot_save_path)
     plt.show()
 
-def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str) -> None:
+def plot_latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str) -> None:
 
     inverse_sigmoid = lambda x : np.log(1 / (1 + np.exp(-x)))
     entropy = lambda P, Q: P*np.log(Q)
@@ -448,7 +458,7 @@ with open(os.path.join(pca_model_path, f'Complete PCA.pkl'), 'rb') as file_handl
 with open(os.path.join(pca_model_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
     post_scaler = pkl.load(file_handle)
 
-plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))
+plot_latent_transfer(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))
 
 # Maclaurin series for materials and actions
 indices = random.sample(range(len(Z_test)), 700)
