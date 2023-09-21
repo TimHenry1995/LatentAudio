@@ -378,7 +378,7 @@ def knn_manipulation_check(flow_network: Callable, Z: np.ndarray, Y: np.ndarray,
         if stats.ttest_rel(permuted_accuracies[:,i], chance_accuracies[:,i]).pvalue < 0.025: # Corrected significance level
             plt.annotate("*", (2.49, 1.02))
         else: plt.annotate("o", (2.49, 1.02))
-        plt.ylim(0.43, 1.1)
+        plt.ylim(1.0/len(set(Y[:,i]))-0.07, 1.1)
         plt.xticks([1,2,3],["Original","Consistent\nPermutation","Inconsistent\nPermutation"])
         if i == -2: plt.ylabel("Accuracy")
         
@@ -461,6 +461,6 @@ with open(os.path.join(pca_model_path, 'Post PCA Standard Scaler.pkl'), 'rb') as
 plot_latent_transfer(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))
 
 # Maclaurin series for materials and actions
-indices = random.sample(range(len(Z_test)), 700)
+indices = random.sample(range(len(Z_test)), 600)
 stage_wise_maclaurin(network=flow_network, Z= Z_test[indices], y= Y_test[indices,-2], layer_steps=[7*(s+1) for s in range(stage_count)], step_titles= [f'Stage {s+1}' for s in range(stage_count)], plot_save_path = os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Maclaurin materials.png"))
 stage_wise_maclaurin(network=flow_network, Z= Z_test[indices], y= Y_test[indices,-1], layer_steps=[7*(s+1) for s in range(stage_count)], step_titles= [f'Stage {s+1}' for s in range(stage_count)], plot_save_path = os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Maclaurin actions.png"))
