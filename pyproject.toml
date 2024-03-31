@@ -28,5 +28,5 @@ dependencies = [
     "scipy>=1.11.1",
     "matplotlib >= 3.5.3",
     "numpy >= 1.21.6",
-    "tensorflow >= 2.9"
+    "tensorflow == 2.9"
 ]
