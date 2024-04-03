@@ -19,25 +19,30 @@ from latent_audio.yamnet import layer_wise as ylw
 import os, soundfile as sf, numpy as np, shutil
 from scipy.signal import decimate
 
-# Configuration
-raw_folder_path = os.path.join('data','raw audio')
-augmented_folder_path = os.path.join('data','augmented audio')
-raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
-for file_name in reversed(raw_file_names):
-    if '.wav' not in file_name: raw_file_names.remove(file_name)
-latent_data_path = os.path.join('data','latent yamnet','original')
-if not os.path.exists(latent_data_path): os.makedirs(latent_data_path)
+def run(
+    layer_index: int,
+    raw_folder_path: str = os.path.join('data','raw audio'),
+    augmented_folder_path: str = os.path.join('data','augmented audio'),
+    latent_data_path: str = os.path.join('data','latent yamnet','original')
+    ):
 
-yamnet = ylw.LayerWiseYamnet()
-yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
+    print("Running audio to latent yamnet")
+    
+    # Initialization
+    raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
+    for file_name in reversed(raw_file_names):
+        if '.wav' not in file_name: raw_file_names.remove(file_name)
 
-material_to_label = {'W':0,'M':1,'G':2,'S':3,'C':4,'P':5}
-action_to_label = {'T':0,'R':1,'D':2,'W':3}
+    if not os.path.exists(latent_data_path): os.makedirs(latent_data_path)
 
-for inspection_layer_index in range(14):
-    print(f"Layer {inspection_layer_index}")
+    yamnet = ylw.LayerWiseYamnet()
+    yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
 
-    layer_path = os.path.join(latent_data_path,f'Layer {inspection_layer_index}')
+    material_to_label = {'W':0,'M':1,'G':2,'S':3,'C':4,'P':5}
+    action_to_label = {'T':0,'R':1,'D':2,'W':3}
+
+
+    layer_path = os.path.join(latent_data_path,f'Layer {layer_index}')
 
     # This line deletes any content in the output folder 
     if os.path.exists(layer_path): shutil.rmtree(layer_path)
@@ -65,7 +70,7 @@ for inspection_layer_index in range(14):
         sampling_rate = 16000
         
         # Pass through yamnet up until target layer
-        latent = yamnet.call_until_layer(waveform=waveform, layer_index=inspection_layer_index).numpy()
+        latent = yamnet.call_until_layer(waveform=waveform, layer_index=layer_index).numpy()
 
         # Create y
         material = raw_file_name[0]; action = raw_file_name[1]
@@ -75,6 +80,9 @@ for inspection_layer_index in range(14):
         for s, slice in enumerate(latent):
             np.save(os.path.join(layer_path, f"{raw_file_name[:-4]}_X_{s}.npy"), np.reshape(slice,[-1])) 
             np.save(os.path.join(layer_path, f"{raw_file_name[:-4]}_Y_{s}.npy"), y) 
-        print(f"\t{np.round(100*(r+1)/len(raw_file_names), 2)}% Completed")
+        print(f"\r\t{np.round(100*(r+1)/len(raw_file_names))}% Completed", end='')
+    print("\tRun Completed")
 
-print("Script completed")            
+if __name__ == "__main__":
+    for layer_index in range(14):
+        run(layer_index=layer_index)       
