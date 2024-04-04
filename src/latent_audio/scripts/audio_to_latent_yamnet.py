@@ -1,20 +1,5 @@
-"""This script can be used to convert the raw audio data into latent yamnet representations.
 
-Requirements:
-- The script augment_audio needs to be executed apriori
-- The raw and augmented audio data needs to be sampled at 48 Khz with int16 bit rate
-
-Steps:
-- iterates layer indices
-- loads raw and augmented waveforms (will be concatenated and normalized to float32 in range [-1,1])
-- passes through yamnet up until current layer
-- flattens each time frame into a vector
-- saves each time frame
-
-Side effects:
-- The script initially deletes the output folder (if exists) and the saves only the new data in it. Hence, any old data in that fodler will be lost.
-"""
-
+import tensorflow as tf
 from latent_audio.yamnet import layer_wise as ylw
 import os, soundfile as sf, numpy as np, shutil
 from scipy.signal import decimate
@@ -25,8 +10,34 @@ def run(
     augmented_folder_path: str = os.path.join('data','augmented audio'),
     latent_data_path: str = os.path.join('data','latent yamnet','original')
     ):
+    """This function can be used to convert the raw audio data from their waveform representation into their latent yamnet representations.
 
-    print("Running audio to latent yamnet")
+    Requirements:
+    - The script augment_audio needs to be executed apriori
+    - The raw and augmented audio data needs to be sampled at 48 Khz with int16 bit rate
+
+    Steps:
+    - iterates layer indices
+    - loads raw and augmented waveforms (will be concatenated and normalized to float32 in range [-1,1])
+    - passes through yamnet up until current layer
+    - flattens each time frame into a vector
+    - saves each time frame
+
+    Side effects:
+    - The script initially deletes the output folder (if exists) and the saves only the new data in it. Hence, any old data in that fodler will be lost.
+    - Keras session is cleared at beginning of call.
+        
+    :param layer_index: The index of the Yamnet layer for which the latent Yamnet data shall be computed.
+    :type layer_index: int
+    :param raw_folder_path: The path to the folder containing the raw, i.e. waveform data before augmentation.
+    :type raw_folder_path: str
+    :param augmented_folder_path: The path to the folder containing the augmented, i.e. waveform data that augments the raw data.
+    :type augmented_folder_path: str
+    :param latent_data_path: The path to the folder in which the latent representations shall be stored.
+    :type latent_data_path: str
+    """
+
+    print("Running script to convert audio to latent yamnet")
     
     # Initialization
     raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
@@ -34,7 +45,8 @@ def run(
         if '.wav' not in file_name: raw_file_names.remove(file_name)
 
     if not os.path.exists(latent_data_path): os.makedirs(latent_data_path)
-
+    
+    tf.keras.backend.clear_session() # Need to clear session because otherwise yamnet cannot be loaded
     yamnet = ylw.LayerWiseYamnet()
     yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
 
@@ -81,7 +93,11 @@ def run(
             np.save(os.path.join(layer_path, f"{raw_file_name[:-4]}_X_{s}.npy"), np.reshape(slice,[-1])) 
             np.save(os.path.join(layer_path, f"{raw_file_name[:-4]}_Y_{s}.npy"), y) 
         print(f"\r\t{np.round(100*(r+1)/len(raw_file_names))}% Completed", end='')
-    print("\tRun Completed")
+
+        # Delete singleton
+        del latent
+
+    print("\n\tRun Completed")
 
 if __name__ == "__main__":
     for layer_index in range(14):

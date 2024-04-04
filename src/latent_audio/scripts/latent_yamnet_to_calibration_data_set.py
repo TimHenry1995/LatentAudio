@@ -25,7 +25,7 @@ def run(layer_index: int,
         pca_path : str = os.path.join('models','Scaler and PCA'), 
         output_data_path: str = os.path.join('data','latent yamnet')):
 
-    print("Running latent yamnet to calibration data set")
+    print("Running script to convert latent yamnet to calibration data set")
 
     # Adjust configuration
     output_data_path = os.path.join(output_data_path, f"{dimensionality} dimensions")
@@ -62,7 +62,7 @@ def run(layer_index: int,
     np.save(os.path.join(output_layer_path, "X"), np.concatenate(Xs, axis=0))
     np.save(os.path.join(output_layer_path, "Y"), np.concatenate(Ys, axis=0))
         
-    print("\tRun completed")
+    print("\n\tRun completed")
 
 if __name__ == "__main__":
     for layer_index in range(14):
