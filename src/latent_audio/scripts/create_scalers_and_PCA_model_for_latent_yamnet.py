@@ -91,5 +91,27 @@ def run(layer_index: int,
 
 if __name__ == "__main__":
     
-    #for layer_index in range(14):
-    run(layer_index=0)
+    for layer_index in range(14):
+        run(layer_index=layer_index)
+'''
+    # Plot PCA
+    plt.figure(figsize=(10,5)); plt.title(f"Principal Component Analysis")
+    for layer_index in layer_indices:
+        R = 0
+        plt.gca().set_prop_cycle(None)
+        for i, r in enumerate(explained_variances[layer_index]):
+            plt.bar([str(layer_index)],[r], bottom=R, color='white', edgecolor='black')
+            R += r
+
+        plt.ylim(0,1)
+    plt.ylabel('Explained Variance'); plt.xlabel('Layer')
+    plt.savefig(os.path.join(figure_output_folder, f"Principal Component Analysis"))
+    plt.show()
+
+    # Plot dimensionalities
+    plt.figure(figsize=(10,5)); plt.title("Original Dimensionalities")
+    plt.bar(dimensionalities.keys(), dimensionalities.values(), color='white', edgecolor='black')
+    plt.ylabel("Dimensionality"); plt.xlabel('Layer')
+    plt.savefig(os.path.join(figure_output_folder, "Original Dimensionalities"))
+    plt.show()
+'''
