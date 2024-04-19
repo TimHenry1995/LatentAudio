@@ -4,12 +4,14 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import numpy as np
 import pickle as pkl
+from typing import Tuple
 import random
+import matplotlib.pyplot as plt
 
 def run(layer_index: int,
         X_folder: str = os.path.join('data','latent yamnet','original'), 
         PCA_folder: str = os.path.join('models','Scaler and PCA'),
-        target_dimensionality: int = 64):
+        target_dimensionality: int = 64) -> Tuple[int, np.ndarray]:
     """Creates a standard scaler to be used before principal component analysis (PCA), a PCA model and a standard scaler to be used after PCA. 
     The data is expected to be stored in ``X_folder`` in the same format as output by the ``audio_to_latent_yamnet.run`` function. The here 
     created models are not used to perform the projection of the data, instead the models are simply saved in ``PCA_folder``. 
@@ -34,6 +36,8 @@ def run(layer_index: int,
     :type PCA_folder: str
     :param target_dimensionality: The dimensionality that PCA should have for its output. Since a complete PCA model with same output as input dimensionality is resource intensive (for early layers even prohibitively expensive), it is recommended to keep this value as small as possible. Most layers will only need the forward PCA model and hence as small model is sufficient, e.g. 64 dimensions (default), for latent space exploration. If latent space manipulation is planned for the current layer, then a full PCA model is required. The full model will automatically be created if target_dimensionality is set to None.
     :type target_dimensionality: int
+    :return: dimensions (Tuple[int, numpy.ndarray]) - The int is the original dimensionality of the layer and the array has shape [`target_dimensionality`] and lists the proportion of variance explained by the first each of the first `targte_dimensionality` many dimensions of PCA.
+
     """
      
     print("Running script to create scalers and PCA model for latent yamnet")
@@ -89,14 +93,18 @@ def run(layer_index: int,
         pkl.dump(post_scaler, file_handle)
     print("\tRun Completed")
 
-if __name__ == "__main__":
-    
-    for layer_index in range(14):
-        run(layer_index=layer_index)
-'''
+    # Outputs
+    return X_sample.shape[1], pca.explained_variance_ratio_
+
+if __name__ == "__main__": 
+    figure_output_folder = os.path.join('plots','explore latent yamnet','64 dimensions')
+    layer_indices = range(14)
+    dimensionalities = {}
+
     # Plot PCA
     plt.figure(figsize=(10,5)); plt.title(f"Principal Component Analysis")
     for layer_index in layer_indices:
+        dimensionalities[layer_index], explained_variances = run(layer_index=layer_index)
         R = 0
         plt.gca().set_prop_cycle(None)
         for i, r in enumerate(explained_variances[layer_index]):
@@ -114,4 +122,3 @@ if __name__ == "__main__":
     plt.ylabel("Dimensionality"); plt.xlabel('Layer')
     plt.savefig(os.path.join(figure_output_folder, "Original Dimensionalities"))
     plt.show()
-'''
