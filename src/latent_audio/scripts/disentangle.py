@@ -226,8 +226,8 @@ if __name__ == "__main__":
     random_seed = 678
     tf.keras.utils.set_random_seed(random_seed) # Sets the seed of python's random, numpy's random and tensorflow's random modules
     
-    stage_count = 8
-    epoch_count = 20
+    stage_count = 10
+    epoch_count = 12
     dimensions_per_factor = [62,1,1]
     materials_to_keep = [0,1,2,3,4,5]; actions_to_keep = [0,1,2,3]
     materials_to_drop = list(range(6))
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     
     # Calibrate
     flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
-    flow_network.loss = SupervisedFactorLossMultiNormal(dimensions_per_factor=dimensions_per_factor, factor_to_muhs=[tf.constant([0.0]),tf.constant([-6.0,-2.0,2.0,6.0]),tf.constant([-6.0,-2.0,2.0,6.0])], factor_to_sigmas=[tf.constant([1.0]),tf.constant([1.0,1.0,1.0,1.0]),tf.constant([1.0,1.0,1.0,1.0])], sigma=0.99); del flow_network.__sigma__
+    flow_network.loss = SupervisedFactorLossMultiNormal(dimensions_per_factor=dimensions_per_factor, factor_to_muhs=[tf.constant([0.0]),tf.constant([-10.0,-6.0,-2.0,2.0,6.0,10.0]),tf.constant([-6.0,-2.0,2.0,6.0])], factor_to_sigmas=[tf.constant([1.0]),tf.constant([1.0,1.0,1.0,1.0,1.0,1.0]),tf.constant([1.0,1.0,1.0,1.0])], sigma=0.99); del flow_network.__sigma__
     
     means_train, stds_train, means_validate, stds_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
     print(means_train); print(means_validate)

@@ -403,10 +403,10 @@ batch_size = 512
 latent_transfer_sample_size = 2**13 # Needs to be large enough for samples of all conditions to appear
 random_seed = 678
 tf.keras.utils.set_random_seed(random_seed) # Needs to be the same seed as in disentangle.py
-stage_count = 7
-epoch_count = 20
+stage_count = 10
+epoch_count = 12
 dimensions_per_factor = [62,1,1]
-materials_to_keep = [0,1,2,4]; actions_to_keep = [0,1,2,3]
+materials_to_keep = [0,1,2,3,4,5]; actions_to_keep = [0,1,2,3]
 materials_to_drop = list(range(6))
 for m in reversed(materials_to_keep): materials_to_drop.remove(m)
 actions_to_drop = list(range(4))
@@ -420,7 +420,7 @@ pca_model_path = os.path.join("models","Scaler and PCA",f"Layer {inspection_laye
 plot_save_path = os.path.join('plots','evaluate flow models', f'Layer {inspection_layer_index}')
 if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
 flow_model_save_path = os.path.join(flow_model_save_path, f'Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} seed {random_seed}.h5')
-material_labels=['Wood','Metal','Glas','Stone','Cardboard','Plastic']; action_labels = ['Tap','Rub','Destroy','Whirl']
+material_labels=['W','M','G','S','C','P']; action_labels = ['T','R','D','W']
 
 # Load data iterators
 train_iterator, test_iterator, batch_count, Z_train, Z_test, Y_train, Y_test = lsd.load_iterators(data_path=projected_data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
@@ -437,11 +437,11 @@ flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage
 flow_network.load_weights(flow_model_save_path)
 
 # Scatterplots
-scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
+scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} seed {random_seed} Calibrated Network Scatterplots.png"))
 
 # TODO Only apply to test data
 # KNN manipulation check
-knn_manipulation_check(flow_network=flow_network, Z=np.concatenate([Z_train, Z_test], axis=0), Y=np.concatenate([Y_train, Y_test], axis=0), plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Manipulation Check.png"))
+knn_manipulation_check(flow_network=flow_network, Z=np.concatenate([Z_train, Z_test], axis=0), Y=np.concatenate([Y_train, Y_test], axis=0), plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} seed {random_seed} Calibrated Network Manipulation Check.png"))
 
 # Load a sample of even size from yamnets latent space 
 Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=original_data_path, sample_size=latent_transfer_sample_size)
@@ -460,7 +460,7 @@ with open(os.path.join(pca_model_path, f'Complete PCA.pkl'), 'rb') as file_handl
 with open(os.path.join(pca_model_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
     post_scaler = pkl.load(file_handle)
 
-plot_latent_transfer(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))
+plot_latent_transfer(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} seed {random_seed} Calibrated Network Latent Transfer.png"))
 
 # Maclaurin series for materials and actions
 #indices = random.sample(range(len(Z_test)), 600)
