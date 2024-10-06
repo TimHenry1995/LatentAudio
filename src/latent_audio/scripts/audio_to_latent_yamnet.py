@@ -30,7 +30,7 @@ def run(
     :type latent_data_path: str
     """
 
-    print("Running script to convert audio to latent yamnet.")
+    print(f"Running script to convert audio to latent yamnet layer {layer_index}.")
     
     # Initialization
     raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
