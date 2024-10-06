@@ -29,7 +29,7 @@ def run(layer_index: int,
     :return: dimensions (Tuple[int, numpy.ndarray]) - The int is the original dimensionality of the layer and the array has shape [`target_dimensionality`] and lists the proportion of variance explained by the first each of the first `targte_dimensionality` many dimensions of PCA.
     """
      
-    print("Running script to create scalers and PCA model for latent yamnet")
+    print("Running script to create scalers and PCA model for latent yamnet.")
 
     random.seed(42)
     X_layer_folder = os.path.join(X_folder_path, f'Layer {layer_index}')
@@ -131,7 +131,10 @@ if __name__ == "__main__":
     
     # Modelling
     for layer_index in range(14):
-        layer_index_to_dimensionality[layer_index], layer_index_to_explained_variances[layer_index] = run(layer_index=layer_index)
+        layer_index_to_dimensionality[layer_index], layer_index_to_explained_variances[layer_index] = run(layer_index=layer_index, 
+                                                                                                          X_folder_path = os.path.join('data','latent yamnet','original'), 
+                                                                                                          PCA_folder_path = os.path.join('models','Scaler and PCA'),
+                                                                                                          target_dimensionality = 64)
 
     # Plotting
     plot(figure_output_folder = os.path.join('plots','explore latent yamnet','64 dimensions'),
