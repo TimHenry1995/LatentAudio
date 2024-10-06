@@ -30,7 +30,7 @@ def run(
     :type latent_data_path: str
     """
 
-    print("Running script to convert audio to latent yamnet")
+    print("Running script to convert audio to latent yamnet.")
     
     # Initialization
     raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
@@ -76,7 +76,7 @@ def run(
         latent = yamnet.call_until_layer(waveform=waveform, layer_index=layer_index).numpy()
 
         # Create y
-        name = raw_file_name.split('.')[:-1].join('.') # removes the file extension
+        name = '.'.join(raw_file_name.split('.')[:-1]) # removes the file extension
         y = np.array(waveform_file_name_to_Y_vector[name])
 
         # Save
