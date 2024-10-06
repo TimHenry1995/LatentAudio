@@ -7,44 +7,33 @@ import pickle as pkl
 from typing import Tuple
 import random
 import matplotlib.pyplot as plt
+from typing import Dict
 
 def run(layer_index: int,
-        X_folder: str = os.path.join('data','latent yamnet','original'), 
-        PCA_folder: str = os.path.join('models','Scaler and PCA'),
+        X_folder_path: str = os.path.join('data','latent yamnet','original'), 
+        PCA_folder_path: str = os.path.join('models','Scaler and PCA'),
         target_dimensionality: int = 64) -> Tuple[int, np.ndarray]:
     """Creates a standard scaler to be used before principal component analysis (PCA), a PCA model and a standard scaler to be used after PCA. 
-    The data is expected to be stored in ``X_folder`` in the same format as output by the ``audio_to_latent_yamnet.run`` function. The here 
-    created models are not used to perform the projection of the data, instead the models are simply saved in ``PCA_folder``. 
-
-    Requirements:
-    - requires the audio_to_latent_yamnet script to be executed apriori
-
-    Steps:
-    - for a given layer it loads a sample of latent yamnet representations
-    - fits a standard scaler to the sample
-    - performs a full principal component analysis (for invertibility)
-    - saves the scaler and PCA models as .pkl files
-
-    Side effects
-    - before saving the models into the specified folder, that folder (if exists) is deleted and any other files inside of it will thus be lost.
+    The data is expected to be stored at ``X_folder_path`` in the same format as output by the ``audio_to_latent_yamnet.run`` function. The here 
+    created models are not used to perform the projection of the data. Instead, the models are simply saved in ``PCA_folder_path``. 
+    Before saving the models into the specified folder, that folder (if exists) is deleted and any other files inside it will thus be lost.
 
     :param layer_index: The index of the Yamnet layer for which the latent Yamnet data shall be loaded.
     :type layer_index: int
-    :param X_folder: The path to the folder where the latent Yamnet data is located.
-    :type X_folder: str
-    :param PCA_folder: The path to the folder where the standard scalers and PCA model shall be stored.
-    :type PCA_folder: str
+    :param X_folder_paht: The path to the folder where the latent Yamnet data is located.
+    :type X_folder_path: str
+    :param PCA_folder_path: The path to the folder where the standard scalers and PCA model shall be stored.
+    :type PCA_folder_path: str
     :param target_dimensionality: The dimensionality that PCA should have for its output. Since a complete PCA model with same output as input dimensionality is resource intensive (for early layers even prohibitively expensive), it is recommended to keep this value as small as possible. Most layers will only need the forward PCA model and hence as small model is sufficient, e.g. 64 dimensions (default), for latent space exploration. If latent space manipulation is planned for the current layer, then a full PCA model is required. The full model will automatically be created if target_dimensionality is set to None.
     :type target_dimensionality: int
     :return: dimensions (Tuple[int, numpy.ndarray]) - The int is the original dimensionality of the layer and the array has shape [`target_dimensionality`] and lists the proportion of variance explained by the first each of the first `targte_dimensionality` many dimensions of PCA.
-
     """
      
     print("Running script to create scalers and PCA model for latent yamnet")
 
     random.seed(42)
-    X_layer_folder = os.path.join(X_folder, f'Layer {layer_index}')
-    PCA_layer_folder = os.path.join(PCA_folder, f"Layer {layer_index}")
+    X_layer_folder = os.path.join(X_folder_path, f'Layer {layer_index}')
+    PCA_layer_folder = os.path.join(PCA_folder_path, f"Layer {layer_index}")
     if os.path.exists(PCA_layer_folder): shutil.rmtree(PCA_layer_folder)
     os.makedirs(PCA_layer_folder)
 
@@ -96,18 +85,31 @@ def run(layer_index: int,
     # Outputs
     return X_sample.shape[1], pca.explained_variance_ratio_
 
-if __name__ == "__main__": 
-    figure_output_folder = os.path.join('plots','explore latent yamnet','64 dimensions')
-    layer_indices = range(14)
-    dimensionalities = {}
+def plot(figure_output_folder: str,
+         layer_index_to_dimensionality: Dict[int, str],
+         layer_index_to_explained_variances: Dict[int, np.ndarray]) -> None:
+    """
+    Creates two plots to illustrate the dimensionality distribution over Yamnet's layers (plot 1) and the distribution of explained variance over Yament's layers (plot 2).
 
-    # Plot PCA
+    :param figure_output_folder: The path pointing to the folder where the plots shall be stored.
+    :type figure_output_folder: str
+    :param layer_index_to_dimensionality: A dictionary mapping each layer index of Yamnet to the number of dimensions that the corresponding layer has.
+    :type layer_index_to_dimensionality: Dict[int, str]
+    :param layer_index_to_explained_variances: A dictionary mapping each layer index of Yamnet to a numpy vector storing the proportion of variance explained by principal components of that layer's space.
+    :type layer_index_to_explained_variances: Dict[int, numpy.ndarray]
+    """
+
+
+    # Prepare plot for proportion of variance in the original data that is explained by the variance that is in the projection
     plt.figure(figsize=(10,5)); plt.title(f"Principal Component Analysis")
-    for layer_index in layer_indices:
-        dimensionalities[layer_index], explained_variances = run(layer_index=layer_index)
-        R = 0
+
+    # Iterate the layers
+    for layer_index in layer_index_to_explained_variances:
+        
+        # Plot the proportion of variance
         plt.gca().set_prop_cycle(None)
-        for i, r in enumerate(explained_variances[layer_index]):
+        R = 0
+        for i, r in enumerate(layer_index_to_explained_variances[layer_index]):
             plt.bar([str(layer_index)],[r], bottom=R, color='white', edgecolor='black')
             R += r
 
@@ -116,9 +118,23 @@ if __name__ == "__main__":
     plt.savefig(os.path.join(figure_output_folder, f"Principal Component Analysis"))
     plt.show()
 
-    # Plot dimensionalities
+    # Plot original dimensionalities of Yamnet
     plt.figure(figsize=(10,5)); plt.title("Original Dimensionalities")
-    plt.bar(dimensionalities.keys(), dimensionalities.values(), color='white', edgecolor='black')
+    plt.bar(layer_index_to_dimensionality.keys(), layer_index_to_dimensionality.values(), color='white', edgecolor='black')
     plt.ylabel("Dimensionality"); plt.xlabel('Layer')
     plt.savefig(os.path.join(figure_output_folder, "Original Dimensionalities"))
     plt.show()
+
+if __name__ == "__main__": 
+    layer_index_to_dimensionality = {}
+    layer_index_to_explained_variances = {}
+    
+    # Modelling
+    for layer_index in range(14):
+        layer_index_to_dimensionality[layer_index], layer_index_to_explained_variances[layer_index] = run(layer_index=layer_index)
+
+    # Plotting
+    plot(figure_output_folder = os.path.join('plots','explore latent yamnet','64 dimensions'),
+         layer_index_to_dimensionality = layer_index_to_dimensionality,
+         layer_index_to_explained_variances = layer_index_to_explained_variances)
+    
