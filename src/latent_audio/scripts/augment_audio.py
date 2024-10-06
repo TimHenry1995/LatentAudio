@@ -1,17 +1,3 @@
-"""This script augments the raw audio data by applying reverberation.
-
-Requirements:
-- The audio data needs to be sampled at 48 Khz with int16 bit rate
-- in addition to the packages installed with this python project, the instructions for installing pysndfx and its dependency sox need to be followed https://pypi.org/project/pysndfx/
-
-Steps:
-- Loads all sound files
-- Applies the augmentation
-- Saves the new sounds as new files 
-
-Side effects:
-if the script has been run before, the current new sound files will override the previous new ones.
-"""
 
 
 from latent_audio.yamnet import layer_wise as ylw
@@ -24,31 +10,40 @@ fx = (
     .reverb()
     .lowshelf()
 )
+def run(raw_folder_path = os.path.join('data','raw audio'), augmented_folder_path = os.path.join('data','augmented audio')) -> None:
+    """This function loads all sound files at `raw_folder_path`, augments the raw audio data by applying reverberation and saves them one by one to `augmented_folder_path`. 
+    The audio files stored at `raw_folder_path` are assumed to be .wav files recorded with an int16 bitrate. 
 
-# Configuration
-raw_folder_path = os.path.join('data','raw audio')
-augmented_folder_path = os.path.join('data','augmented audio')
-if not os.path.exists(augmented_folder_path): os.makedirs(augmented_folder_path)
-
-raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
-for file_name in reversed(raw_file_names):
-    if '.wav' not in file_name: raw_file_names.remove(file_name)
-
-# Preprocess all files
-for c, raw_file_name in enumerate(raw_file_names):
-
-    # Load .wav file
-    waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name), dtype=np.int16)
+    :param raw_folder_path: Path to the folder containing the raw audio files.
+    :type raw_folder_path: str
+    :param augmented_folder_path: Path to the folder where the augmented audio files will be saved.
+    :type augmented_folder_path: str
+    :return: None
+    :rtype: NoneType
+    """
     
-    # Apply effects
-    waveform = fx(waveform)
-    assert waveform.dtype == np.int16
+    # Ensure output folder exists
+    if not os.path.exists(augmented_folder_path): os.makedirs(augmented_folder_path)
 
-    # Save
-    sf.write(os.path.join(augmented_folder_path, raw_file_name), waveform, sampling_rate)
+    # Get list of input wav files
+    # Assumes files to have material as first letter and action as second letter
+    raw_file_names = os.listdir(raw_folder_path) 
+    for file_name in reversed(raw_file_names):
+        if '.wav' not in file_name: raw_file_names.remove(file_name)
 
-    print(f'{100*c/len(raw_file_names)}% Finished')
+    # Preprocess all files
+    for c, raw_file_name in enumerate(raw_file_names):
 
-print("Script completed")            
+        # Load .wav file
+        waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name), dtype=np.int16)
+        
+        # Apply effects
+        waveform = fx(waveform)
+        assert waveform.dtype == np.int16
 
+        # Save
+        sf.write(os.path.join(augmented_folder_path, raw_file_name), waveform, sampling_rate)
 
+        print(f"\r\t{np.round(100*c/len(raw_file_names))}% Completed", end='')
+
+    print("Script completed")      
