@@ -161,7 +161,7 @@ class LayerWiseYamnet(tf.keras.Model):
 
         :param waveform: The waveform to be sliced and passed through the model for sound event recognition. It is expected to be of 
             shape [time frame count] and of data type float32 in the range [-1,1].
-        :type inputs: :class:`tensorflow.Tensor`
+        :type waveform: :class:`tensorflow.Tensor`
         :param layer_index: The index of the layer up until which the ``waveform`` shall be propagated through self. This index shall 
             be in the range [0,14). The layer at index ``layer_index`` is evaluated.
         :type layer_index: int
