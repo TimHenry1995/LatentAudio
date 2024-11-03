@@ -28,10 +28,11 @@ def run(layer_index: int,
     :type target_dimensionality: int
     :return: dimensions (Tuple[int, numpy.ndarray]) - The int is the original dimensionality of the layer and the array has shape [`target_dimensionality`] and lists the proportion of variance explained by the first each of the first `targte_dimensionality` many dimensions of PCA.
     """
-     
+
     print(f"Running script to create scalers and PCA model for latent yamnet layer {layer_index}.")
 
     random.seed(42)
+    PCA_folder_path = os.path.join(PCA_folder_path, f'{target_dimensionality if target_dimensionality != None else "All"} dimensions')
     X_layer_folder = os.path.join(X_folder_path, f'Layer {layer_index}')
     PCA_layer_folder = os.path.join(PCA_folder_path, f"Layer {layer_index}")
     if os.path.exists(PCA_layer_folder): shutil.rmtree(PCA_layer_folder)
@@ -51,31 +52,31 @@ def run(layer_index: int,
     # Load sample
     print("\tLoading sample of latent data", end='')
     X_sample, Y_sample = utl.load_latent_sample(data_folder=X_layer_folder, sample_size=sample_size)
-    print(f" Completed. Shape == [instance count, dimensionality] == {X_sample.shape}")
+    print(f" completed. Shape == [instance count, dimensionality] == {X_sample.shape}")
 
     # Fit scaler
     print("\tFitting Pre-PCA Standard Scaler to sample", end='')
     pre_scaler = StandardScaler()
     X_sample = pre_scaler.fit_transform(X_sample)
-    print(" Completed")
+    print(" completed")
 
     # Fit PCA
     print(f"\tFitting {target_dimensionality}-dimensional PCA to sample", end='')
     pca = PCA(n_components=target_dimensionality)
     pca.fit(X_sample)
-    print(" Completed")
+    print(" completed")
 
     # Fit scaler
     print("\tFitting Post-PCA Standard Scaler to sample", end='')
     post_scaler = StandardScaler()
     post_scaler.fit(pca.transform(X_sample))
-    print(" Completed")
+    print(" completed")
 
     # Save
     with open(os.path.join(PCA_layer_folder, "Pre PCA Standard Scaler.pkl"),"wb") as file_handle:
         pkl.dump(pre_scaler, file_handle)
         
-    with open(os.path.join(PCA_layer_folder, f"Complete PCA.pkl"),"wb") as file_handle:
+    with open(os.path.join(PCA_layer_folder, f"PCA.pkl"),"wb") as file_handle:
         pkl.dump(pca, file_handle)
 
     with open(os.path.join(PCA_layer_folder, "Post PCA Standard Scaler.pkl"), "wb") as file_handle:
