@@ -104,7 +104,7 @@ def plot(figure_output_folder: str,
     plt.figure(figsize=(10,5)); plt.title(f"Principal Component Analysis")
 
     # Iterate the layers
-    for layer_index in layer_index_to_explained_variances:
+    for layer_index in layer_index_to_explained_variances.keys():
         
         # Plot the proportion of variance
         plt.gca().set_prop_cycle(None)
@@ -120,7 +120,7 @@ def plot(figure_output_folder: str,
 
     # Plot original dimensionalities of Yamnet
     plt.figure(figsize=(10,5)); plt.title("Original Dimensionalities")
-    plt.bar(layer_index_to_dimensionality.keys(), layer_index_to_dimensionality.values(), color='white', edgecolor='black')
+    plt.bar([f'{key}' for key in layer_index_to_dimensionality.keys()], layer_index_to_dimensionality.values(), color='white', edgecolor='black')
     plt.ylabel("Dimensionality"); plt.xlabel('Layer')
     plt.savefig(os.path.join(figure_output_folder, "Original Dimensionalities"))
     plt.show()
