@@ -102,7 +102,8 @@ def plot(figure_output_folder: str,
 
 
     # Prepare plot for proportion of variance in the original data that is explained by the variance that is in the projection
-    plt.figure(figsize=(10,5)); plt.title(f"Principal Component Analysis")
+    dimensionality = len(layer_index_to_explained_variances[layer_index_to_explained_variances.keys()[0]])
+    plt.figure(figsize=(10,5)); plt.title(f"Principal Component Analysis ({dimensionality} components)")
 
     # Iterate the layers
     for layer_index in layer_index_to_explained_variances.keys():
