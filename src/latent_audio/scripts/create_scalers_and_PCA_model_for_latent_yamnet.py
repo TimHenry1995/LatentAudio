@@ -29,7 +29,7 @@ def run(layer_index: int,
     :return: dimensions (Tuple[int, numpy.ndarray]) - The int is the original dimensionality of the layer and the array has shape [`target_dimensionality`] and lists the proportion of variance explained by the first each of the first `targte_dimensionality` many dimensions of PCA.
     """
      
-    print("Running script to create scalers and PCA model for latent yamnet.")
+    print(f"Running script to create scalers and PCA model for latent yamnet layer {layer_index}.")
 
     random.seed(42)
     X_layer_folder = os.path.join(X_folder_path, f'Layer {layer_index}')
