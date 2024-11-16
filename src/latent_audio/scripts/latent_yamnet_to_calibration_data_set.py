@@ -1,26 +1,26 @@
 from latent_audio import utilities as utl
 import os, pickle as pkl, numpy as np, shutil
 def run(layer_index: int,
-        dimensionality: int = 64, 
-        input_data_path: str = os.path.join('data','latent yamnet','original'), 
-        pca_path : str = os.path.join('models','Scaler and PCA','64 dimensions'), 
-        output_data_path: str = os.path.join('data','latent yamnet')):
-        """This function takes the individual files of latent Yamnet sound representations, projects them to a manageable dimensionality and
-        combines them into a single file for calibration of the flow network. Note, the output files (if exist) will be deleted before the new files are created.
-        It is assumed that audio_to_latent_yamnet.run() and create_scaler_and_PCA_model_for_latent_yamnet.run() were executed beforehand.
+    dimensionality: int = 64, 
+    input_data_path: str = os.path.join('data','latent yamnet','original'), 
+    pca_path : str = os.path.join('models','Scaler and PCA','64 dimensions'), 
+    output_data_path: str = os.path.join('data','latent yamnet')):
+    """This function takes the individual files of latent Yamnet sound representations, projects them to a manageable dimensionality and
+    combines them into a single file for calibration of the flow network. Note, the output files (if exist) will be deleted before the new files are created.
+    It is assumed that audio_to_latent_yamnet.run() and create_scaler_and_PCA_model_for_latent_yamnet.run() were executed beforehand.
 
-        :param layer_index: The index of the layer for which the data shall be converted.
-        :type layer_index: int
-        :param dimensionality: The number of dimensions that the projection shall have. Note that this number must not be greater than what the PCA model saved at `pca_path` supports.
-        :type dimensionality: int 
-        :param input_data_path: The data to the input data. These are assumed to be stored in the same format as done by `audio_to_latent_yamnet.run()`.
-        :type input_data_path: str
-        :param pca_path: The path to the standard scalers and PCA model. Models are assumed to be stored in the same format as done by `create_scalers_and_PCA_mode_for_latent_yamnet`.
-        :type pca_path: str
-        :param output_data_path: The path to the folder where the output data shall be stored. The output will be stored in a folder called 'Layer `layer_index`' as X.npy of shape [instance count, `dimensionality`] and corresponding Y.npy of shape [instance count, factor count]."""
+    :param layer_index: The index of the layer for which the data shall be converted.
+    :type layer_index: int
+    :param dimensionality: The number of dimensions that the projection shall have. Note that this number must not be greater than what the PCA model saved at `pca_path` supports.
+    :type dimensionality: int 
+    :param input_data_path: The data to the input data. These are assumed to be stored in the same format as done by `audio_to_latent_yamnet.run()`.
+    :type input_data_path: str
+    :param pca_path: The path to the standard scalers and PCA model. Models are assumed to be stored in the same format as done by `create_scalers_and_PCA_mode_for_latent_yamnet`.
+    :type pca_path: str
+    :param output_data_path: The path to the folder where the output data shall be stored. The output will be stored in a folder called 'Layer `layer_index`' as X.npy of shape [instance count, `dimensionality`] and corresponding Y.npy of shape [instance count, factor count]."""
     
     print(f"Running script to convert latent yamnet layer {layer_index} to calibration data set.")
-
+    
     # Adjust configuration
     output_data_path = os.path.join(output_data_path, f"{dimensionality} dimensions")
 
