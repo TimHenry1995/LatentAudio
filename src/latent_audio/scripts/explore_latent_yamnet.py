@@ -12,23 +12,10 @@ from latent_audio import utilities as utl
 
 def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:str=None):
     """
-    This function explores the layerwise yamnets representations with several plots.
+    This function loads the layerwise latent yamnet projections, fits a cross-validated k-nearest neighbor model to each to predict materials and actions and creates a 2D projection for the first, most accurate and last layers using t-distributed stochastic neighborhood embeddings (t-SNE). 
+    All created plots are saved at `figure_output_folder` where they replace any existing plots of same name (if existent). Assumes that the latent_yamnet_to_calibration_data_set.run() function is executed beforehand. 
 
-    Requirements:
-    - the audio_to_latent_yamnet script needs to be executed apriori
-
-    Steps:
-    - For all layers it loads the latent representations
-    - creates a custom small standard scaler and pca model (thus does NOT use the complete one from the create_scalers_and_model_for_latent_yamnet script because running that one on all layers would tak etoo long)
-    - projects them down to a size manageable for KNN and TSNE 
-    - For each layer it fits a cross validated KNN to predict actions and materials
-    - For the first, maximally accurate and last layer it plots the TSNE 2D Scatter plots
-    - Creates a bar plot to visualize the PCA explained proportion of variance per Yament layer
-    - Saves the plots
-
-    Side effects:
-    - Any eqaully named previosuly created plots will be overridden.
-
+    :param sample_size: The number of instance that shall be loaded for KNN and t-SNE.
     :type sample_size: int, optional
     :param latent_data_folder: The folder from which the latent data shall be drawn. If None, then the default folder inside the internal file system will be used (default is None).
     :type latent_data_folder: str, optional
@@ -142,4 +129,3 @@ def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:st
 
 if __name__ == "__main__":
     run()
-    m=2
