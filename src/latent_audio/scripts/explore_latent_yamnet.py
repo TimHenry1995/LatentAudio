@@ -9,8 +9,9 @@ plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
 from sklearn.model_selection import cross_val_score
 from scipy import stats
 from latent_audio import utilities as utl
+from typing import List
 
-def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:str=None):
+def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:str=None, cross_validation_folds:int = 10, label_to_material: List[str] = ['W','M','G','S','C','P'], label_to_action: List[str] = ['T','R','D','W']):
     """
     This function loads the layerwise latent yamnet projections, fits a cross-validated k-nearest neighbor model to each to predict materials and actions and creates a 2D projection for the first, most accurate and last layers using t-distributed stochastic neighborhood embeddings (t-SNE). 
     All created plots are saved at `figure_output_folder` where they replace any existing plots of same name (if existent). Assumes that the latent_yamnet_to_calibration_data_set.run() function is executed beforehand. 
@@ -21,16 +22,14 @@ def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:st
     :type latent_data_folder: str, optional
     :param figure_output_folder: The folder where the output figures shall be saved. If None, then the default folder inside the internal file system will be used (default is None).
     :type figure_output_folder: str, optional
+    :param cross_validation_folds: The number of cross validation folds that shall be used.
+    :type cross_validation_folds: int, optional
+    :param label_to_material: The list of material labels.
+    :type label_to_material: List[str], optional
+    :param label_to_action: The list of action labels.
+    :type label_to_action: List[str], optional
     """
-
-
-    # Configuration
     np.random.seed(42)
-    latent_data_folder = os.path.join('data','latent yamnet', '64 dimensions')
-    figure_output_folder = os.path.join('plots','explore latent yamnet','64 dimensions')
-    cross_validation_folds = 10
-    label_to_material = ['W','M','G','S','C','P']
-    label_to_action = ['T','R','D','W']
 
     # Load layer indices
     layer_indices = []
@@ -59,10 +58,10 @@ def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:st
         # Fit t-SNE
         tsne = TSNE()
         projections[layer_index] = tsne.fit_transform(X)
-    print(" Completed.")
+    print(" completed.")
 
 
-    # Plot KNN and TSE for both factors
+    # Plot KNN and TSNE for both factors
     if not os.path.exists(figure_output_folder): os.makedirs(figure_output_folder)
     for factor_index, factor_name, label_to_factor in zip([0,1], ['Material','Action'], [label_to_material, label_to_action]):
         print(f"Processing factor {factor_name}")
@@ -76,7 +75,7 @@ def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:st
             if mean < mean_2:
                 max_index = layer_index
                 mean = mean_2
-
+        print("\tThe max index is ", max_index)
         first_index = np.min(layer_indices); last_index = np.max(layer_indices)
         t_first_to_max, p_first_to_max = stats.ttest_ind(KNN_accuracies[first_index][factor_index], KNN_accuracies[max_index][factor_index])
         t_max_to_last, p_max_to_last = stats.ttest_ind(KNN_accuracies[max_index][factor_index], KNN_accuracies[last_index][factor_index])
@@ -96,14 +95,17 @@ def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:st
         plt.figure(figsize=(10,7)); plt.title(f"K-Nearest Neighbor Classification on {factor_name}s")
         plt.boxplot([accuracies[factor_index] for accuracies in KNN_accuracies.values()], labels=KNN_accuracies.keys())
         plt.ylim(1.0/len(label_to_factor)-0.05,1.2); plt.ylabel('Accuracy'); plt.xlabel('Layer')
-        plt.hlines([1.0/len(label_to_factor)], xmin=layer_indices[0]+1, xmax=layer_indices[-1]+1, color='red')
-        plt.text(x=layer_indices[0]+1, y=(1.0/len(label_to_factor))+0.02,s='Chance Level')
+        a = (int)(np.where(np.array(layer_indices)==first_index)[0])+1 # Used as x value for horizontal line
+        b = (int)(np.where(np.array(layer_indices)==max_index)[0])+1 # Used as x value for horizontal line
+        c = (int)(np.where(np.array(layer_indices)==last_index)[0])+1 # Used as x value for horizontal line
+        plt.hlines([1.0/len(label_to_factor)], xmin=a, xmax=c, color='red')
+        plt.text(x=a, y=(1.0/len(label_to_factor))+0.02,s='Chance Level')
 
         # Add lines and stars to KNN (with bonferroni correction)
-        plt.hlines([1,1.05,1.1], xmin=[first_index+1, max_index+1, first_index+1], xmax=[max_index+1, last_index+1, last_index+1], color='black')
-        if p_first_to_max*3 < 0.05: plt.text((first_index+max_index+2)/2, 1.01, '*')
-        if p_max_to_last*3 < 0.05: plt.text((last_index+max_index+2)/2, 0.99, '*')
-        if p_first_to_last*3 < 0.05: plt.text((first_index+last_index+2)/2, 1.11, '*')
+        plt.hlines([1,1.05,1.1], xmin=[a, b, a], xmax=[b, c, c], color='black')
+        if p_first_to_max*3 < 0.05: plt.text((a+b+2)/2, 1.01, '*')
+        if p_max_to_last*3 < 0.05: plt.text((c+b+2)/2, 0.99, '*')
+        if p_first_to_last*3 < 0.05: plt.text((a+c+2)/2, 1.11, '*')
         plt.savefig(os.path.join(figure_output_folder, f"KNN {factor_name}"))
 
         # Plot t-SNE
@@ -126,6 +128,3 @@ def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:st
         plt.savefig(os.path.join(figure_output_folder, f"TSNE {factor_name}"))
 
         print(f"\t\tThe plots can be found at {figure_output_folder}")
-
-if __name__ == "__main__":
-    run()
