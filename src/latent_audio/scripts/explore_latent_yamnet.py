@@ -75,7 +75,7 @@ def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:st
             if mean < mean_2:
                 max_index = layer_index
                 mean = mean_2
-        print("\tThe max index is ", max_index)
+        print("\tThe layer for which KNN recognizes classes of this factor most accurately has index ", max_index)
         first_index = np.min(layer_indices); last_index = np.max(layer_indices)
         t_first_to_max, p_first_to_max = stats.ttest_ind(KNN_accuracies[first_index][factor_index], KNN_accuracies[max_index][factor_index])
         t_max_to_last, p_max_to_last = stats.ttest_ind(KNN_accuracies[max_index][factor_index], KNN_accuracies[last_index][factor_index])
