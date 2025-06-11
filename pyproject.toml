@@ -29,6 +29,6 @@ dependencies = [
     "matplotlib == 3.5.3",
     "numpy >= 1.21.6, < 1.25",
     "tensorflow == 2.9",
-    "pysndfx == 0.3.6"
+    "pysndfx == 0.3.6",
     "tensorflow-probability == 0.16.0"
 ]
