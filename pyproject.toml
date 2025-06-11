@@ -22,12 +22,13 @@ classifiers = [
 dependencies = [
     "sphinx == 5.2.3",
     "sphinx-rtd-theme",
-    "soundfile>= 0.12.1",
+    "soundfile== 0.12.1",
     "gyoza>=0.1.9",
     "scikit-learn == 1.3.0",
-    "scipy>=1.11.1",
-    "matplotlib >= 3.5.3",
+    "scipy==1.11.1",
+    "matplotlib == 3.5.3",
     "numpy >= 1.21.6, < 1.25",
     "tensorflow == 2.9",
+    "pysndfx == 0.3.6"
     "tensorflow-probability == 0.16.0"
 ]
