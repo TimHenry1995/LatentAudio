@@ -1,6 +1,6 @@
 
 import tensorflow as tf
-from latent_audio.yamnet import layer_wise as ylw
+from LatentAudio.yamnet import layer_wise as ylw
 import os, soundfile as sf, numpy as np, shutil
 from scipy.signal import decimate
 from typing import Dict, List
@@ -8,9 +8,9 @@ from typing import Dict, List
 def run(
     layer_index: int,
     waveform_file_name_to_Y_vector: Dict[str, List[int]],
-    raw_folder_path: str = os.path.join('data','raw audio'),
-    augmented_folder_path: str = os.path.join('data','augmented audio'),
-    latent_data_path: str = os.path.join('data','latent yamnet','original')
+    raw_folder_path: str = os.path.join('LatentAudio','data','raw audio'),
+    augmented_folder_path: str = os.path.join('LatentAudio','data','augmented audio'),
+    latent_data_path: str = os.path.join('LatentAudio','data','latent yamnet','original')
     ) -> None:
     """This function loads each waveform file, converts it into a sequence of ca. 1 second long spectrogram slices and passes them through Yamnet up until `layer_index`.
     Each slice will then be flattened into a long vector and saved to disk with the name \<waveform file name>\_X\_\<slice index>.npy next to a small file called \<waveform file name>\_Y\_\<slice index>.npy storing the vector with the factor-wise class indices of that slice.

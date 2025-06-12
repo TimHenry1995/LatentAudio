@@ -21,7 +21,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model, layers
 
-from latent_audio.plugins.yamnet import features as features_lib
+from LatentAudio.plugins.yamnet import features as features_lib
 
 
 def _batch_norm(name, params):

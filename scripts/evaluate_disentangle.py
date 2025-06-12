@@ -1,10 +1,10 @@
 """This script visualizes the model created by the disentangle script. It passes sample data through the model
 and shows in scatter plots how well the matierial and action factors are disentangled."""
 
-from latent_audio.scripts import disentangle as lsd
-import latent_audio.utilities as utl
+from LatentAudio.scripts import disentangle as lsd
+import LatentAudio.utilities as utl
 import tensorflow as tf
-from latent_audio.yamnet import layer_wise as ylw
+from LatentAudio.yamnet import layer_wise as ylw
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
 import os, numpy as np
 import tensorflow as tf, matplotlib.pyplot as plt

@@ -1,13 +1,13 @@
 import os, soundfile as sf, numpy as np, shutil
-from latent_audio.plugins.yamnet import params as yamnet_params, yamnet as yamnet_model
+from LatentAudio.plugins.yamnet import params as yamnet_params, yamnet as yamnet_model
 
 # Configuration
-raw_folder_path = os.path.join('data','raw audio')
+raw_folder_path = os.path.join('LatentAudio','data','raw audio')
 raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
 for file_name in reversed(raw_file_names):
     if '.wav' not in file_name: raw_file_names.remove(file_name)
 
-save_path = os.path.join('data','sound slices for humans')
+save_path = os.path.join('LatentAudio','data','sound slices for humans')
 
 if os.path.exists(save_path): shutil.rmtree(save_path) # This line deletes current sound slices 
 os.makedirs(save_path)
@@ -16,8 +16,8 @@ block_count = 4
 duration_of_slice = 5*0.96 # seconds
 
 yamnet = yamnet_model.yamnet_frames_model(yamnet_params.Params())
-yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
-yamnet_classes = yamnet_model.class_names(os.path.join('src','latent_audio','plugins','yamnet','yamnet_class_map.csv'))
+yamnet.load_weights(os.path.join('LatentAudio','plugins','yamnet','yamnet.h5'))
+yamnet_classes = yamnet_model.class_names(os.path.join('LatentAudio','plugins','yamnet','yamnet_class_map.csv'))
 np.random.seed(312)
 # Slicing
 for b in range(block_count):

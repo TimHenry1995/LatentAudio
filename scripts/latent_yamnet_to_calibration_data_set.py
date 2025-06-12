@@ -1,10 +1,10 @@
-from latent_audio import utilities as utl
+from LatentAudio import utilities as utl
 import os, pickle as pkl, numpy as np, shutil
 def run(layer_index: int,
     dimensionality: int = 64, 
-    input_data_path: str = os.path.join('data','latent yamnet','original'), 
-    pca_path : str = os.path.join('models','Scaler and PCA','64 dimensions'), 
-    output_data_path: str = os.path.join('data','latent yamnet')):
+    input_data_path: str = os.path.join('LatentAudio','data','latent yamnet','original'), 
+    pca_path : str = os.path.join('LatentAudio','models','Scaler and PCA','64 dimensions'), 
+    output_data_path: str = os.path.join('LatentAudio','data','latent yamnet')):
     """This function takes the individual files of latent Yamnet sound representations, projects them to a manageable dimensionality and
     combines them into a single file for calibration of the flow network. Note, the output files (if exist) will be deleted before the new files are created.
     It is assumed that audio_to_latent_yamnet.run() and create_scaler_and_PCA_model_for_latent_yamnet.run() were executed beforehand.

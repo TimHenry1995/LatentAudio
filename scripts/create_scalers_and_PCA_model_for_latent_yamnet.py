@@ -1,5 +1,5 @@
 import os, shutil
-from latent_audio import utilities as utl
+from LatentAudio import utilities as utl
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import numpy as np
@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 from typing import Dict
 
 def run(layer_index: int,
-        X_folder_path: str = os.path.join('data','latent yamnet','original'), 
-        PCA_folder_path: str = os.path.join('models','Scaler and PCA'),
+        X_folder_path: str = os.path.join('LatentAudio','data','latent yamnet','original'), 
+        PCA_folder_path: str = os.path.join('LatentAudio','models','Scaler and PCA'),
         target_dimensionality: int = 64) -> Tuple[int, np.ndarray]:
     """Creates a standard scaler to be used before principal component analysis (PCA), a PCA model and a standard scaler to be used after PCA. 
     The data is expected to be stored at ``X_folder_path`` in the same format as output by the ``audio_to_latent_yamnet.run`` function. The here 

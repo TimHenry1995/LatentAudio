@@ -1,6 +1,6 @@
 
 
-from latent_audio.yamnet import layer_wise as ylw
+from LatentAudio.yamnet import layer_wise as ylw
 import os, soundfile as sf, numpy as np, shutil
 from pysndfx import AudioEffectsChain
 
@@ -10,7 +10,7 @@ fx = (
     .reverb()
     .lowshelf()
 )
-def run(raw_folder_path = os.path.join('data','raw audio'), augmented_folder_path = os.path.join('data','augmented audio')) -> None:
+def run(raw_folder_path = os.path.join('LatentAudio','data','raw audio'), augmented_folder_path = os.path.join('LatentAudio','data','augmented audio')) -> None:
     """This function loads all sound files at `raw_folder_path`, augments the raw audio data by applying reverberation and saves them one by one to `augmented_folder_path`. 
     The audio files stored at `raw_folder_path` are assumed to be .wav files recorded with an int16 bitrate. 
 

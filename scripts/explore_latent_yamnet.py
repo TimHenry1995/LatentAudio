@@ -8,7 +8,7 @@ plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
 from sklearn.model_selection import cross_val_score
 from scipy import stats
-from latent_audio import utilities as utl
+from LatentAudio import utilities as utl
 from typing import List
 
 def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:str=None, cross_validation_folds:int = 10, label_to_material: List[str] = ['W','M','G','S','C','P'], label_to_action: List[str] = ['T','R','D','W']):
