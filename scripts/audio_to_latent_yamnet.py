@@ -41,7 +41,7 @@ def run(
     
     tf.keras.backend.clear_session() # Need to clear session because otherwise yamnet cannot be loaded
     yamnet = ylw.LayerWiseYamnet()
-    yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
+    yamnet.load_weights(os.path.join('Latent','plugins','yamnet','yamnet.h5'))
 
     layer_path = os.path.join(latent_data_path,f'Layer {layer_index}')
 
