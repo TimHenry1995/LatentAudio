@@ -44,6 +44,6 @@ def run(raw_folder_path = os.path.join('data','raw audio'), augmented_folder_pat
         # Save
         sf.write(os.path.join(augmented_folder_path, raw_file_name), waveform, sampling_rate)
 
-        print(f"\r\t{np.round(100*c/len(raw_file_names))}% Completed", end='')
+        print(f"\r\t{np.round(100*(c+1)/len(raw_file_names))}% Completed", end='')
 
     print("Script completed")      
