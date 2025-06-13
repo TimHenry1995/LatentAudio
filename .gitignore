@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # Data
-data/sound slices for humans
+data/generated
 
 #Models
 models/Scaler and PCA

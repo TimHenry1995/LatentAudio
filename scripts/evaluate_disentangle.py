@@ -4,7 +4,7 @@ and shows in scatter plots how well the matierial and action factors are disenta
 from LatentAudio.scripts import disentangle as lsd
 import LatentAudio.utilities as utl
 import tensorflow as tf
-from LatentAudio.yamnet import layer_wise as ylw
+from LatentAudio.adapters import layer_wise as ylw
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
 import os, numpy as np
 import tensorflow as tf, matplotlib.pyplot as plt

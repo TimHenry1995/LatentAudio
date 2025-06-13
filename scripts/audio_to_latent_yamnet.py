@@ -1,6 +1,8 @@
 
+import sys
+sys.path.append(".")
 import tensorflow as tf
-from LatentAudio.yamnet import layer_wise as ylw
+from LatentAudio.adapters import layer_wise as ylw
 import os, soundfile as sf, numpy as np, shutil
 from scipy.signal import decimate
 from typing import Dict, List
@@ -41,7 +43,7 @@ def run(
     
     tf.keras.backend.clear_session() # Need to clear session because otherwise yamnet cannot be loaded
     yamnet = ylw.LayerWiseYamnet()
-    yamnet.load_weights(os.path.join('Latent','plugins','yamnet','yamnet.h5'))
+    yamnet.load_weights(os.path.join('LatentAudio','plugins','yamnet','yamnet.h5'))
 
     layer_path = os.path.join(latent_data_path,f'Layer {layer_index}')
 
@@ -53,7 +55,7 @@ def run(
     for r, raw_file_name in enumerate(raw_file_names):
         # Load .wav file
         waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name), dtype=np.int16)
-        assert sampling_rate == 48000, f"The sampling rate of the raw audio was assumed to be 48000 in order to apply the decimation algorithm and achieve yamnets 16000. The provided audio has sampling rate {sampling_rate_r}. You need to use a different downsampling method, e.g. from sklearn to meet yamnet's requirement."
+        assert sampling_rate == 48000, f"The sampling rate of the raw audio was assumed to be 48000 in order to apply the decimation algorithm and achieve yamnets 16000. The provided audio has sampling rate {sampling_rate}. You need to use a different downsampling method, e.g. from sklearn to meet yamnet's requirement."
         if augmented_folder_path is not None:
             waveform_a, sampling_rate_a = sf.read(os.path.join(augmented_folder_path, raw_file_name), dtype=np.int16)
             assert sampling_rate_a == 48000, f"The sampling rate of the augmented audio was assumed to be 48000 in order to apply the decimation algorithm and achieve yamnets 16000. The provided audio has sampling rate {sampling_rate_a}. You need to use a different downsampling method, e.g. from sklearn to meet yamnet's requirement."
@@ -89,3 +91,22 @@ def run(
         del latent
 
     print("\n\tRun Completed")
+
+if __name__ == "__main__":
+    # Load Configuration
+    import json, os
+    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
+        configuration = json.load(f)
+
+    # Describe mapping from audio file name to factor-wise class indices
+    material_to_index = {'W':0,'M':1,'G':2,'S':3,'C':4,'P':5}
+    action_to_index = {'T':0,'R':1,'D':2,'W':3}
+    waveform_file_name_to_Y_vector = {f"{m}{a}" : [material_to_index[m],action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()}
+
+    # Convert audio to latent Yamnet
+    for layer_index in range(14): # Yamnet has 14 layers
+        run(layer_index=layer_index,
+                    waveform_file_name_to_Y_vector = waveform_file_name_to_Y_vector,
+                    raw_folder_path =configuration['raw_audio_data_folder'],
+                    augmented_folder_path = None, # If you use the augmented data, you can replace None with configuration['augmented_audio_data_folder']
+                    latent_data_path = configuration['latent_yamnet_data_folder'])
