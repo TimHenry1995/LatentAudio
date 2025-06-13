@@ -1,4 +1,4 @@
-from latent_audio.plugins.yamnet import params, features as features_lib, yamnet as yamnet_lib
+from LatentAudio.plugins.yamnet import params, features as features_lib, yamnet as yamnet_lib
 import tensorflow as tf
 from typing import Tuple, Dict, Any
 import numpy as np
