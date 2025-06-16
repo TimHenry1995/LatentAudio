@@ -2,7 +2,6 @@
 Each factor shall be disentangled into their respective clases, independent of the other factor. It is possible to remove some classes because they might not all be separable.
 It is assumed that latent_yamnet_to_calibration_data_set.run() was executed apriori.
 """
-
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
 from gyoza.modelling import data_iterators as gmd, flow_layers as mfl, standard_layers as msl, masks as gmm
 import os, numpy as np
@@ -110,44 +109,48 @@ def plot_calibration_trajectory(means_train, stds_train, means_validate, stds_va
     plt.show()
 
 if __name__ == "__main__":
+    
+    # Load Configuration
+    import json, os
+    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
+        configuration = json.load(f)
 
-    # Configuration
-    inspection_layer_index = 9
-    batch_size = 512
-    np.random.seed(865)
-    tf.keras.utils.set_random_seed(895)
-    random.seed(248)
-    stage_count = 5
-    epoch_count = 2
-    dimensions_per_factor = [62,1,1]
-    materials_to_keep = [0,1]; actions_to_keep = [0,1]
+    batch_size = configuration['flow_model_batch_size']
+    np.random.seed(configuration['random_seed'])
+    tf.keras.utils.set_random_seed(configuration['random_seed'])
+    random.seed(configuration['random_seed'])
+    stage_count = configuration['flow_model_stage_count']
+    epoch_count = configuration['flow_model_epoch_count']
+    dimensions_per_factor = configuration['flow_model_dimensions_per_factor']
+    materials_to_keep = configuration['flow_model_materials_to_keep']; actions_to_keep = configuration['flow_model_actions_to_keep']
     materials_to_drop = list(range(6))
     for m in reversed(materials_to_keep): materials_to_drop.remove(m)
     actions_to_drop = list(range(4))
     for a in reversed(actions_to_keep): actions_to_drop.remove(a)
     m_string = ",".join(str(m) for m in materials_to_keep)
     a_string = ",".join(str(a) for a in actions_to_keep)
-    data_path = os.path.join('data','latent yamnet',f'{np.sum(dimensions_per_factor)} dimensions',f'Layer {inspection_layer_index}')
-    model_save_path = os.path.join('models', 'flow models',f'Layer {inspection_layer_index}')
-    plot_save_path = os.path.join('plots','flow models', f'Layer {inspection_layer_index}')
+    
+    data_path = os.path.join(configuration['latent_yamnet_data_folder'],'projected', f'{np.sum(configuration['dimensions_per_factor'])} dimensions',f'Layer {configuration['layer_index_full_PCA']}')
+    model_save_path = os.path.join(configuration['model_folder'], 'flow models',f'Layer {configuration['layer_index_full_PCA']}')
+    plot_save_path = os.path.join(configuration['plots_folder'],'flow models', f'Layer {configuration['layer_index_full_PCA']}')
     if not os.path.exists(model_save_path): os.makedirs(model_save_path)
     if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
     model_save_path = os.path.join(model_save_path, f'Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
-    
+
     # Load data iterators
     train_iterator, test_iterator, batch_count,_,Z_test,_,Y_test = load_iterators(data_path=data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
-    Z_ab_sample, Y_ab_sample = next(train_iterator) # Sample
-    
+    Z_ab_sample, Y_ab_sample = next(train_iterator) # 1 Sample
+
     print("The data is fed to the model in batches of shape:\n","Z_ab_sample: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_ab_sample: (instance count, factor count): \t', Y_ab_sample.shape)
 
     # Create network
     flow_network = create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
     if os.path.exists(model_save_path): flow_network.load_weights(model_save_path)
-    
+
     # Calibrate
     flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.005))
     means_train, stds_train, means_validate, stds_validate = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=test_iterator)
-    
+
     plot_calibration_trajectory(means_train=means_train, stds_train=stds_train, means_validate=means_validate, stds_validate=stds_validate, batch_size=batch_size, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Loss.png"))
 
     # Save existing model

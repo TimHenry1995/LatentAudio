@@ -294,62 +294,72 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
     plt.show()
 
 
-# Configuration
-inspection_layer_index = 9
-batch_size = 512
-latent_transfer_sample_size = 2**12 # Needs to be large enough for samples of all conditions to appear
-np.random.seed(865)
-tf.keras.utils.set_random_seed(895)
-random.seed(248)
-stage_count = 5
-epoch_count = 10
-dimensions_per_factor = [62,1,1]
-materials_to_keep = [0,1,2,3,4,5]; actions_to_keep = [0,1,2,3]
-materials_to_drop = list(range(6))
-for m in reversed(materials_to_keep): materials_to_drop.remove(m)
-actions_to_drop = list(range(4))
-for a in reversed(actions_to_keep): actions_to_drop.remove(a)
-m_string = ",".join(str(m) for m in materials_to_keep)
-a_string = ",".join(str(a) for a in actions_to_keep)
-projected_data_path = os.path.join('data','latent yamnet',f'{np.sum(dimensions_per_factor)} dimensions',f'Layer {inspection_layer_index}')
-original_data_path = os.path.join('data','latent yamnet','original',f'Layer {inspection_layer_index}')
-flow_model_save_path = os.path.join('models', 'flow models', f'Layer {inspection_layer_index}')
-pca_model_path = os.path.join("models","Scaler and PCA",f"Layer {inspection_layer_index}")
-plot_save_path = os.path.join('plots','evaluate flow models', f'Layer {inspection_layer_index}')
-if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
-flow_model_save_path = os.path.join(flow_model_save_path, f'Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
-material_labels=['W','M','G','S','C','P']; action_labels = ['T','R','D','W']
-layer_wise_yamnet = ylw.LayerWiseYamnet()
-layer_wise_yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
+if __name__ == "__main__":
+    
+    # Load Configuration
+    import json, os
+    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
+        configuration = json.load(f)
 
-# Load data iterators
-train_iterator, test_iterator, batch_count, Z_train, Z_test, Y_train, Y_test = lsd.load_iterators(data_path=projected_data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
-Z_ab_sample, Y_ab_sample = next(train_iterator) # Sample
+    # Configuration
+    batch_size = configuration['flow_model_batch_size']
+    latent_transfer_sample_size = 2**12 # Needs to be large enough for samples of all conditions to appear
+    np.random.seed(configuration['random_seed'])
+    tf.keras.utils.set_random_seed(configuration['random_seed'])
+    random.seed(configuration['random_seed'])
+    stage_count = configuration['flow_model_stage_count']
+    epoch_count = configuration['flow_model_epoch_count']
+    dimensions_per_factor = configuration['flow_model_dimensions_per_factor']
+    materials_to_keep = configuration['flow_model_materials_to_keep']; actions_to_keep = configuration['flow_model_actions_to_keep']
+    materials_to_drop = list(range(6))
+    for m in reversed(materials_to_keep): materials_to_drop.remove(m)
+    actions_to_drop = list(range(4))
+    for a in reversed(actions_to_keep): actions_to_drop.remove(a)
+    m_string = ",".join(str(m) for m in materials_to_keep)
+    a_string = ",".join(str(a) for a in actions_to_keep)
+    
+    projected_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'projected',f'{np.sum(configuration['dimensions_per_factor'])} dimensions',f'Layer {configuration['layer_index_full_PCA']}')
+    original_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'original',f'Layer {configuration['layer_index_full_PCA']}')
+    flow_model_save_path = os.path.join(configuration['model_folder'], 'flow models',f'Layer {configuration['layer_index_full_PCA']}')
+    pca_model_path = os.path.join(configuration['model_folder'], 'PCA and Standard Scalers',f"Layer {configuration['layer_index_full_PCA']}")
+    plot_save_path = os.path.join(configuration['plots_folder'],'evaluate flow models', f'Layer {configuration['layer_index_full_PCA']}')
+    
+    if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
+    flow_model_save_path = os.path.join(flow_model_save_path, f'Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
+    material_labels=configuration['material_to_index'].keys(); action_labels = configuration['action_to_index'].keys()
+    
+    tf.keras.backend.clear_session() # Need to clear session because otherwise yamnet cannot be loaded
+    layer_wise_yamnet = ylw.LayerWiseYamnet()
+    layer_wise_yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
 
-print("The data is fed to the model in batches of shape:\n","Z: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_sample: (instance count, factor count): \t', Y_ab_sample.shape)
+    # Load data iterators
+    train_iterator, test_iterator, batch_count, Z_train, Z_test, Y_train, Y_test = lsd.load_iterators(data_path=projected_data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
+    Z_ab_sample, Y_ab_sample = next(train_iterator) # Sample
 
-# Create network
-flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
-flow_network.load_weights(flow_model_save_path)
+    print("The data is fed to the model in batches of shape:\n","Z: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_sample: (instance count, factor count): \t', Y_ab_sample.shape)
 
-# Evaluate
-scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
+    # Create network
+    flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
+    flow_network.load_weights(flow_model_save_path)
 
-# Load a sample of even size from yamnets latent space 
-Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=original_data_path, sample_size=latent_transfer_sample_size)
-for material in materials_to_drop:
-    Z_prime_sample = Z_prime_sample[Y_sample[:,-2] != material]
-    Y_sample = Y_sample[Y_sample[:,-2] != material]
+    # Evaluate
+    scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
 
-for action in actions_to_drop:
-    Z_prime_sample = Z_prime_sample[Y_sample[:,-1] != action]
-    Y_sample = Y_sample[Y_sample[:,-1] != action]
+    # Load a sample of even size from yamnets latent space
+    Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=original_data_path, sample_size=latent_transfer_sample_size)
+    for material in materials_to_drop:
+        Z_prime_sample = Z_prime_sample[Y_sample[:,-2] != material]
+        Y_sample = Y_sample[Y_sample[:,-2] != material]
 
-with open(os.path.join(pca_model_path, 'Pre PCA Standard Scaler.pkl'), 'rb') as file_handle:
-    pre_scaler = pkl.load(file_handle)
-with open(os.path.join(pca_model_path, f'Complete PCA.pkl'), 'rb') as file_handle:
-    pca = pkl.load(file_handle)
-with open(os.path.join(pca_model_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
-    post_scaler = pkl.load(file_handle)
+    for action in actions_to_drop:
+        Z_prime_sample = Z_prime_sample[Y_sample[:,-1] != action]
+        Y_sample = Y_sample[Y_sample[:,-1] != action]
 
-plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=inspection_layer_index, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))
+    with open(os.path.join(pca_model_path, 'Pre PCA Standard Scaler.pkl'), 'rb') as file_handle:
+        pre_scaler = pkl.load(file_handle)
+    with open(os.path.join(pca_model_path, f'Complete PCA.pkl'), 'rb') as file_handle:
+        pca = pkl.load(file_handle)
+    with open(os.path.join(pca_model_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
+        post_scaler = pkl.load(file_handle)
+
+    plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=configuration['layer_index_full_PCA'], plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))

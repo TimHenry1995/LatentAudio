@@ -1,10 +1,10 @@
 from LatentAudio import utilities as utl
 import os, pickle as pkl, numpy as np, shutil
 def run(layer_index: int,
-    dimensionality: int = 64, 
-    input_data_path: str = os.path.join('LatentAudio','data','latent yamnet','original'), 
-    pca_path : str = os.path.join('LatentAudio','models','Scaler and PCA','64 dimensions'), 
-    output_data_path: str = os.path.join('LatentAudio','data','latent yamnet')):
+    dimensionality: int, 
+    input_data_path: str, 
+    pca_path : str, 
+    output_data_path: str):
     """This function takes the individual files of latent Yamnet sound representations, projects them to a manageable dimensionality and
     combines them into a single file for calibration of the flow network. Note, the output files (if exist) will be deleted before the new files are created.
     It is assumed that audio_to_latent_yamnet.run() and create_scaler_and_PCA_model_for_latent_yamnet.run() were executed beforehand.
@@ -59,5 +59,29 @@ def run(layer_index: int,
     print("\n\tRun Completed")
 
 if __name__ == "__main__":
-    for layer_index in range(14):
-        run(layer_index=layer_index)
+
+    # Load Configuration
+    import json, os
+    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
+        configuration = json.load(f)
+
+    # Modelling
+    target_dimensionality = configuration['PCA_target_dimensionality'] # The number of dimensions of the projections
+    full_dimensionality_layer_index = configuration['layer_index_full_PCA'] # For this layer, the full PCA model will be created (costly)
+    
+    # Use the small PCA model for most layers
+    layer_indices = sorted(configuration['layer_indices_small_PCA'] + [configuration['layer_index_full_PCA']])
+    for layer_index in layer_indices:     
+        
+        run(layer_index=layer_index,
+            dimensionality=target_dimensionality,
+            input_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'original'),
+            pca_path = os.path.join(configuration['model_folder'],'PCA and Standard Scalers',f'{target_dimensionality} dimensions'),
+            output_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'projected'))
+
+    # Use the full PCA model for the layer for which disentanglement shall be performed later on
+    run(layer_index=configuration['layer_index_full_PCA'],
+        dimensionality=target_dimensionality,
+        input_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'original'),
+        pca_path = os.path.join(configuration['model_folder'],'PCA and Standard Scalers', 'All dimensions'),
+        output_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'projected'))

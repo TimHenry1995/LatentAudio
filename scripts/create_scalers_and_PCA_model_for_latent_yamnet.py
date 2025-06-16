@@ -10,33 +10,36 @@ import matplotlib.pyplot as plt
 from typing import Dict
 
 def run(layer_index: int,
-        X_folder_path: str = os.path.join('LatentAudio','data','latent yamnet','original'), 
-        PCA_folder_path: str = os.path.join('LatentAudio','models','Scaler and PCA'),
-        target_dimensionality: int = 64) -> Tuple[int, np.ndarray]:
+        X_folder_path: str, 
+        PCA_and_standard_scaler_folder_path: str,
+        target_dimensionality: int,
+        random_seed: int) -> Tuple[int, np.ndarray]:
     """Creates a standard scaler to be used before principal component analysis (PCA), a PCA model and a standard scaler to be used after PCA. 
     The data is expected to be stored at ``X_folder_path`` in the same format as output by the ``audio_to_latent_yamnet.run`` function. The here 
-    created models are not used to perform the projection of the data. Instead, the models are simply saved in ``PCA_folder_path``. 
+    created models are not used to perform the projection of the data. Instead, the models are simply saved in ``PCA_and_standard_scaler_folder_path``. 
     Before saving the models into the specified folder, that folder (if exists) is deleted and any other files inside it will thus be lost.
 
     :param layer_index: The index of the Yamnet layer for which the latent Yamnet data shall be loaded.
     :type layer_index: int
     :param X_folder_paht: The path to the folder where the latent Yamnet data is located.
     :type X_folder_path: str
-    :param PCA_folder_path: The path to the folder where the standard scalers and PCA model shall be stored.
-    :type PCA_folder_path: str
+    :param PCA_and_standard_scaler_folder_path: The path to the folder where the standard scalers and PCA model shall be stored.
+    :type PCA_and_standard_scaler_folder_path: str
     :param target_dimensionality: The dimensionality that PCA should have for its output. Since a complete PCA model with same output as input dimensionality is resource intensive (for early layers even prohibitively expensive), it is recommended to keep this value as small as possible. Most layers will only need the forward PCA model and hence as small model is sufficient, e.g. 64 dimensions (default), for latent space exploration. If latent space manipulation is planned for the current layer, then a full PCA model is required. The full model will automatically be created if target_dimensionality is set to None.
     :type target_dimensionality: int
+    :param random_seed: The seed used to set the random module of python right before taking a sample of instances based on which the models will be calibrated.
+    :type random_seed: int
     :return: dimensions (Tuple[int, numpy.ndarray]) - The int is the original dimensionality of the layer and the array has shape [`target_dimensionality`] and lists the proportion of variance explained by the first each of the first `targte_dimensionality` many dimensions of PCA.
     """
 
     print(f"Running script to create scalers and PCA model for latent yamnet layer {layer_index}.")
 
-    random.seed(42)
-    PCA_folder_path = os.path.join(PCA_folder_path, f'{target_dimensionality if target_dimensionality != None else "All"} dimensions')
+    random.seed(random_seed)
     X_layer_folder = os.path.join(X_folder_path, f'Layer {layer_index}')
-    PCA_layer_folder = os.path.join(PCA_folder_path, f"Layer {layer_index}")
-    if os.path.exists(PCA_layer_folder): shutil.rmtree(PCA_layer_folder)
-    os.makedirs(PCA_layer_folder)
+    PCA_and_standard_scaler_folder_path = os.path.join(PCA_and_standard_scaler_folder_path, f'{target_dimensionality if target_dimensionality != None else "All"} dimensions')
+    PCA_and_standard_scaler_folder_path = os.path.join(PCA_and_standard_scaler_folder_path, f"Layer {layer_index}")
+    if os.path.exists(PCA_and_standard_scaler_folder_path): shutil.rmtree(PCA_and_standard_scaler_folder_path)
+    os.makedirs(PCA_and_standard_scaler_folder_path)
 
     # If no target_dimensionality provided, prepare a full pca model (costs memory, disk storage and may lead to index overflow)
     # This makes sense for layers whose original dimensionality is small enough anyways to afford a complete pca model, e.g. Yamnet layer 9
@@ -44,7 +47,7 @@ def run(layer_index: int,
         # Load one instance to get shape
         X_tmp, _ = utl.load_latent_sample(data_folder=X_layer_folder, sample_size=1) # Shape == [sample size = 1, dimensionality]
         target_dimensionality = X_tmp.shape[1] 
-        sample_size = (int)(1.1 * target_dimensionality) # PCA needs dimensionality many UNIQUE data points. Here we take a few more data points to hopefully have this many unique ones
+        sample_size = (int)(1.1 * target_dimensionality) # PCA needs dimensionality at least as many unique data points as target dimensions. Here we take a few more data points to hopefully have this many unique ones
         del X_tmp
     else: # Prepare small pca model, suited for any Yamnet layer
         sample_size = 10000 # For a small pca model, e.g. 64 target dimensions, this many instances should suffice
@@ -73,13 +76,13 @@ def run(layer_index: int,
     print(" completed")
 
     # Save
-    with open(os.path.join(PCA_layer_folder, "Pre PCA Standard Scaler.pkl"),"wb") as file_handle:
+    with open(os.path.join(PCA_and_standard_scaler_folder_path, "Pre PCA Standard Scaler.pkl"),"wb") as file_handle:
         pkl.dump(pre_scaler, file_handle)
         
-    with open(os.path.join(PCA_layer_folder, f"PCA.pkl"),"wb") as file_handle:
+    with open(os.path.join(PCA_and_standard_scaler_folder_path, f"PCA.pkl"),"wb") as file_handle:
         pkl.dump(pca, file_handle)
 
-    with open(os.path.join(PCA_layer_folder, "Post PCA Standard Scaler.pkl"), "wb") as file_handle:
+    with open(os.path.join(PCA_and_standard_scaler_folder_path, "Post PCA Standard Scaler.pkl"), "wb") as file_handle:
         pkl.dump(post_scaler, file_handle)
     print("\tRun Completed")
 
@@ -128,18 +131,34 @@ def plot(figure_output_folder: str,
     plt.show()
 
 if __name__ == "__main__": 
-    layer_index_to_dimensionality = {}
-    layer_index_to_explained_variances = {}
-    
+
+    # Load Configuration
+    import json, os
+    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
+        configuration = json.load(f)
+
     # Modelling
-    for layer_index in range(14):
-        layer_index_to_dimensionality[layer_index], layer_index_to_explained_variances[layer_index] = run(layer_index=layer_index, 
-                                                                                                          X_folder_path = os.path.join('data','latent yamnet','original'), 
-                                                                                                          PCA_folder_path = os.path.join('models','Scaler and PCA'),
-                                                                                                          target_dimensionality = 64)
+    target_dimensionality = configuration['PCA_target_dimensionality'] # The number of dimensions of the projections
+    layer_index_to_dimensionality = {} # Will hold the dimensionality of each Yamnet layer
+    layer_index_to_explained_variances = {} # Will hold the proportion of variance explained by the projections for each layer
+    
+    # Create PCA model and standard scalers of small dimensionality for most layers
+    for layer_index in configuration['layer_indices_small_PCA']:
+        layer_index_to_dimensionality[layer_index], layer_index_to_explained_variances[layer_index] = run(layer_index=layer_index,
+                                                                                                          X_folder_path = os.path.join(configuration['latent_yamnet_data_folder'], 'original'),
+                                                                                                          PCA_and_standard_scaler_folder_path = os.path.join(configuration['model_folder'], 'PCA and Standard Scalers'),
+                                                                                                          target_dimensionality = target_dimensionality,
+                                                                                                          random_seed=configuration['random_seed'])
+        
+    # Create PCA model and standard scalers of complete dimensionality for the full dimensionality layer
+    layer_index_to_dimensionality[layer_index], tmp = run(layer_index=configuration['layer_index_full_PCA'],
+                                                          X_folder_path = os.path.join(configuration['latent_yamnet_data_folder'], 'original'),
+                                                          PCA_and_standard_scaler_folder_path = os.path.join(configuration['model_folder'], 'PCA and Standard Scalers'),
+                                                          target_dimensionality = None,
+                                                          random_seed=configuration['random_seed'])
+    layer_index_to_explained_variances[layer_index] = tmp[:target_dimensionality] # Only keep the explained variances for the first few dimensions for plotting purposes (see next code block).
 
     # Plotting
-    plot(figure_output_folder = os.path.join('plots','explore latent yamnet','64 dimensions'),
-         layer_index_to_dimensionality = layer_index_to_dimensionality,
-         layer_index_to_explained_variances = layer_index_to_explained_variances)
-    
+    plot(figure_output_folder = os.path.join(configuration['plots_folder'],'Explore latent yamnet',f'{target_dimensionality} dimensions'),
+        layer_index_to_dimensionality = layer_index_to_dimensionality,
+        layer_index_to_explained_variances = layer_index_to_explained_variances)

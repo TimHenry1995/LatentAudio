@@ -10,7 +10,7 @@ fx = (
     .reverb()
     .lowshelf()
 )
-def run(raw_audio_data_folder = os.path.join('LatentAudio','data','raw audio'), augmented_audio_data_folder = os.path.join('LatentAudio','data','augmented audio')) -> None:
+def run(raw_audio_data_folder: str, augmented_audio_data_folder: str) -> None:
     """This function loads all sound files at `raw_audio_data_folder`, augments the raw audio data by applying reverberation and saves them one by one to `augmented_audio_data_folder`. 
     The audio files stored at `raw_audio_data_folder` are assumed to be .wav files recorded with an int16 bitrate. 
 
@@ -26,7 +26,6 @@ def run(raw_audio_data_folder = os.path.join('LatentAudio','data','raw audio'), 
     if not os.path.exists(augmented_audio_data_folder): os.makedirs(augmented_audio_data_folder)
 
     # Get list of input wav files
-    # Assumes files to have material as first letter and action as second letter
     raw_file_names = os.listdir(raw_audio_data_folder) 
     for file_name in reversed(raw_file_names):
         if '.wav' not in file_name: raw_file_names.remove(file_name)

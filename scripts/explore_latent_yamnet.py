@@ -11,25 +11,34 @@ from scipy import stats
 from LatentAudio import utilities as utl
 from typing import List
 
-def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:str=None, cross_validation_folds:int = 10, label_to_material: List[str] = ['W','M','G','S','C','P'], label_to_action: List[str] = ['T','R','D','W']):
+def run(latent_data_folder:str, 
+        figure_output_folder:str, 
+        label_to_material: List[str], 
+        label_to_action: List[str],
+        random_seed: int,
+        sample_size: int = 2048,
+        cross_validation_folds:int = 10
+        ):
     """
     This function loads the layerwise latent yamnet projections, fits a cross-validated k-nearest neighbor model to each to predict materials and actions and creates a 2D projection for the first, most accurate and last layers using t-distributed stochastic neighborhood embeddings (t-SNE). 
     All created plots are saved at `figure_output_folder` where they replace any existing plots of same name (if existent). Assumes that the latent_yamnet_to_calibration_data_set.run() function is executed beforehand. 
 
+    :param latent_data_folder: The folder from which the latent data shall be drawn. If None, then the default folder inside the internal file system will be used (default is None).
+    :type latent_data_folder: str
+    :param figure_output_folder: The folder where the output figures shall be saved. If None, then the default folder inside the internal file system will be used (default is None).
+    :type figure_output_folder: str
+    :param label_to_material: The list of material labels.
+    :type label_to_material: List[str]
+    :param label_to_action: The list of action labels.
+    :type label_to_action: List[str]
     :param sample_size: The number of instance that shall be loaded for KNN and t-SNE.
     :type sample_size: int, optional
-    :param latent_data_folder: The folder from which the latent data shall be drawn. If None, then the default folder inside the internal file system will be used (default is None).
-    :type latent_data_folder: str, optional
-    :param figure_output_folder: The folder where the output figures shall be saved. If None, then the default folder inside the internal file system will be used (default is None).
-    :type figure_output_folder: str, optional
     :param cross_validation_folds: The number of cross validation folds that shall be used.
     :type cross_validation_folds: int, optional
-    :param label_to_material: The list of material labels.
-    :type label_to_material: List[str], optional
-    :param label_to_action: The list of action labels.
-    :type label_to_action: List[str], optional
+    :param random_seed: The seed used to set the random module of python before selecting random instances to be fed through the models.
+    :type random_seed: int
     """
-    np.random.seed(42)
+    np.random.seed(random_seed)
 
     # Load layer indices
     layer_indices = []
@@ -128,3 +137,19 @@ def run(sample_size = 2048, latent_data_folder:str=None, figure_output_folder:st
         plt.savefig(os.path.join(figure_output_folder, f"TSNE {factor_name}"))
 
         print(f"\t\tThe plots can be found at {figure_output_folder}")
+
+if __name__ == "__main__":
+    
+    # Load Configuration
+    import json, os
+    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
+        configuration = json.load(f)
+
+    run(latent_data_folder=os.path.join(configuration['latent_yamnet_folder'],'projected', f'{configuration['PCA_target_dimensionality']} dimensions'),
+        figure_output_folder=os.path.join(configuration['plots_folder'],'explore latent yamnet', f'{configuration['PCA_target_dimensionality']} dimensions'),
+        cross_validation_folds = configuration['knn_cross_validation_folds'],
+        label_to_material = {value : key for key, value in configuration['material_to_index']},
+        label_to_action = {value : key for key, value in configuration['action_to_index']},
+        sample_size=configuration['knn_tSNE_sample_size'],
+        random_seed=configuration['random_seed']
+        )

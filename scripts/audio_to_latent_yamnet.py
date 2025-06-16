@@ -16,19 +16,19 @@ def run(
     ) -> None:
     """This function loads each waveform file, converts it into a sequence of ca. 1 second long spectrogram slices and passes them through Yamnet up until `layer_index`.
     Each slice will then be flattened into a long vector and saved to disk with the name \<waveform file name>\_X\_\<slice index>.npy next to a small file called \<waveform file name>\_Y\_\<slice index>.npy storing the vector with the factor-wise class indices of that slice.
-    For example, if the waveform file was called 'Metal Tapping.wav', the X files would be called 'Metal Tapping_X_1.npy', 'Metal Tapping_X_2.npy', etc. and the Y files 'Metal Tapping_Y_1.npy', 'Metal Tapping_Y_2.npy' etc.
-    Note that this function initially deletes the output folder (if exists) and then saves only the new data in it. Hence, any old data in that folder will get lost.
+    For example, if the waveform file for Metal Tapping was called 'MT.wav', the X files would be called 'MT_X_1.npy', 'MT_X_2.npy', etc. and the Y files 'MT_Y_1.npy', 'MT_Y_2.npy' etc.
+    Note that this function initially deletes the output folder (if exists) and then recreates it to save only the new data in it. Hence, any old data in that folder will get lost.
     Apart from that, this function cleares the current Keras session and hence any variables stored in it will get lost.
 
-    :param layer_index: The index of the Yamnet layer for which the latent Yamnet data shall be computed.
+    :param layer_index: The index of the Yamnet layer for which the latent vector shall be computed.
     :type layer_index: int
-    :param waveform_file_name_to_Y_vector: A dictionary mapping the wavefomr file names (without their file extension) to Y vectors that will then be stored for each sound slice.
+    :param waveform_file_name_to_Y_vector: A dictionary mapping the waveform file names (without their file extension) to Y vectors that will then be stored for each sound slice. An example entry is 'MT' : [2,3] in case metal (M) is the material with index 2 and tapping (T) the action with index 3.
     :type waveform_file_name_to_Y_vector: Dict[str, int]
     :param raw_folder_path: The path to the folder containing the raw, i.e. waveform data before augmentation. This audio data needs to be sampled at 48 Khz with int16 bit rate.
     :type raw_folder_path: str
     :param augmented_folder_path: The path to the folder containing the augmented, i.e. waveform data that augments the raw data. Same sampling rate and bitrate is assumed. You can set this to None if you do not intend to use augmented data.
     :type augmented_folder_path: str
-    :param latent_data_path: The path to the folder in which the latent representations shall be stored. The result will be a file called X.npy which stores a matrix of shape [instance count, dimensionality of latent yamnet at `layer_index`] and a file Y.npy of shape [instance count, 2] storing the material and action class, respectively, for every sound.
+    :param latent_data_path: The path to the folder in which the latent representations shall be stored. For the given `layer_index`, a new folder will be created inside that folder to store the output files.
     :type latent_data_path: str
     """
 
@@ -99,14 +99,17 @@ if __name__ == "__main__":
         configuration = json.load(f)
 
     # Describe mapping from audio file name to factor-wise class indices
-    material_to_index = {'W':0,'M':1,'G':2,'S':3,'C':4,'P':5}
-    action_to_index = {'T':0,'R':1,'D':2,'W':3}
-    waveform_file_name_to_Y_vector = {f"{m}{a}" : [material_to_index[m],action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()}
+    material_to_index = configuration['material_to_index']
+    action_to_index = configuration['action_to_index']
+    waveform_file_name_to_Y_vector = {f"{m}{a}" : [material_to_index[m],action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()} # File names are of the form MA, where M is the material abbreviation and A the action abbreviation.
 
     # Convert audio to latent Yamnet
-    for layer_index in range(14): # Yamnet has 14 layers
+    layer_indices = sorted(configuration['layer_indices_small_PCA'] + [configuration['layer_index_full_PCA']])
+    for layer_index in layer_indices:
         run(layer_index=layer_index,
-                    waveform_file_name_to_Y_vector = waveform_file_name_to_Y_vector,
-                    raw_folder_path =configuration['raw_audio_data_folder'],
-                    augmented_folder_path = None, # If you use the augmented data, you can replace None with configuration['augmented_audio_data_folder']
-                    latent_data_path = configuration['latent_yamnet_data_folder'])
+            waveform_file_name_to_Y_vector = waveform_file_name_to_Y_vector,
+            raw_folder_path = configuration['raw_audio_data_folder'],
+            augmented_folder_path = configuration['augmented_audio_data_folder'] if configuration['use_augmented_data'] else None, 
+            latent_data_path = os.path.join(configuration['latent_yamnet_data_folder'], 'original'))
+        
+    
