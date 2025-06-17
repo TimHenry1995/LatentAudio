@@ -147,11 +147,11 @@ if __name__ == "__main__":
     with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
         configuration = json.load(f)
 
-    run(latent_data_folder=os.path.join(configuration['latent_yamnet_folder'],'projected', f'{configuration['PCA_target_dimensionality']} dimensions'),
-        figure_output_folder=os.path.join(configuration['plots_folder'],'explore latent yamnet', f'{configuration['PCA_target_dimensionality']} dimensions'),
+    run(latent_data_folder=os.path.join(configuration['latent_yamnet_data_folder'],'projected', f"{configuration['PCA_target_dimensionality']} dimensions"),
+        figure_output_folder=os.path.join(configuration['plots_folder'],'explore latent yamnet', f"{configuration['PCA_target_dimensionality']} dimensions"),
         cross_validation_folds = configuration['knn_cross_validation_folds'],
-        label_to_material = {value : key for key, value in configuration['material_to_index']},
-        label_to_action = {value : key for key, value in configuration['action_to_index']},
+        label_to_material = {value : key for key, value in configuration['material_to_index'].items()},
+        label_to_action = {value : key for key, value in configuration['action_to_index'].items()},
         sample_size=configuration['knn_tSNE_sample_size'],
         random_seed=configuration['random_seed']
         )

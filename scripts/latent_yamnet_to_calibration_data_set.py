@@ -25,6 +25,7 @@ def run(layer_index: int,
     
     # Adjust configuration
     output_data_path = os.path.join(output_data_path, f"{dimensionality} dimensions")
+    if not os.path.exists(output_data_path): os.makedirs(output_data_path)
 
     # Processing
     input_layer_path = os.path.join(input_data_path, f'Layer {layer_index}')
@@ -72,8 +73,7 @@ if __name__ == "__main__":
     full_dimensionality_layer_index = configuration['layer_index_full_PCA'] # For this layer, the full PCA model will be created (costly)
     
     # Use the small PCA model for most layers
-    layer_indices = sorted(configuration['layer_indices_small_PCA'] + [configuration['layer_index_full_PCA']])
-    for layer_index in layer_indices:     
+    for layer_index in configuration['layer_indices_small_PCA']:     
         
         run(layer_index=layer_index,
             dimensionality=target_dimensionality,
