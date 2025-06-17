@@ -1,5 +1,7 @@
 """This script visualizes the model created by the disentangle script. It passes sample data through the model
 and shows in scatter plots how well the matierial and action factors are disentangled."""
+import sys
+sys.path.append(".")
 
 from LatentAudio.scripts import disentangle as lsd
 import LatentAudio.utilities as utl

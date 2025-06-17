@@ -1,3 +1,5 @@
+import sys
+sys.path.append(".")
 from LatentAudio import utilities as utl
 import os, pickle as pkl, numpy as np, shutil
 def run(layer_index: int,

@@ -1,3 +1,5 @@
+import sys
+sys.path.append(".")
 import os, shutil
 from LatentAudio import utilities as utl
 from sklearn.preprocessing import StandardScaler
@@ -103,6 +105,8 @@ def plot(figure_output_folder: str,
     :type layer_index_to_explained_variances: Dict[int, numpy.ndarray]
     """
 
+    # Ensure folder exists
+    if not os.path.exists(figure_output_folder): os.makedirs(figure_output_folder)
 
     # Prepare plot for proportion of variance in the original data that is explained by the variance that is in the projection
     dimensionality = len(list(layer_index_to_explained_variances.values())[0])
@@ -159,6 +163,6 @@ if __name__ == "__main__":
     layer_index_to_explained_variances[layer_index] = tmp[:target_dimensionality] # Only keep the explained variances for the first few dimensions for plotting purposes (see next code block).
 
     # Plotting
-    plot(figure_output_folder = os.path.join(configuration['plots_folder'],'Explore latent yamnet',f'{target_dimensionality} dimensions'),
+    plot(figure_output_folder = os.path.join(configuration['plots_folder'],'explore latent yamnet',f'{target_dimensionality} dimensions'),
         layer_index_to_dimensionality = layer_index_to_dimensionality,
         layer_index_to_explained_variances = layer_index_to_explained_variances)

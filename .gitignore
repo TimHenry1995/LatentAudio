@@ -13,7 +13,7 @@ data/latent yamnet
 models
 
 # Plots
-plots
+#plots
 
 # Mac OSX
 .DS_Store

@@ -1,3 +1,5 @@
+import sys
+sys.path.append(".")
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE

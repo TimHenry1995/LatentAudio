@@ -2,6 +2,9 @@
 Each factor shall be disentangled into their respective clases, independent of the other factor. It is possible to remove some classes because they might not all be separable.
 It is assumed that latent_yamnet_to_calibration_data_set.run() was executed apriori.
 """
+import sys
+sys.path.append(".")
+
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
 from gyoza.modelling import data_iterators as gmd, flow_layers as mfl, standard_layers as msl, masks as gmm
 import os, numpy as np
