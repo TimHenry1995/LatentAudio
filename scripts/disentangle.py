@@ -4,7 +4,7 @@ It is assumed that latent_yamnet_to_calibration_data_set.run() was executed apri
 """
 import sys
 sys.path.append(".")
-
+from LatentAudio.configurations import loader as configuration_loader
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
 from gyoza.modelling import data_iterators as gmd, flow_layers as mfl, standard_layers as msl, masks as gmm
 import os, numpy as np
@@ -112,12 +112,9 @@ def plot_calibration_trajectory(means_train, stds_train, means_validate, stds_va
     plt.show()
 
 if __name__ == "__main__":
-    
     # Load Configuration
-    import json, os
-    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
-        configuration = json.load(f)
-
+    configuration = configuration_loader.load()
+    
     batch_size = configuration['flow_model_batch_size']
     np.random.seed(configuration['random_seed'])
     tf.keras.utils.set_random_seed(configuration['random_seed'])

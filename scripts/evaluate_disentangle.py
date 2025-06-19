@@ -5,6 +5,7 @@ sys.path.append(".")
 
 from LatentAudio.scripts import disentangle as lsd
 import LatentAudio.utilities as utl
+from LatentAudio.configurations import loader as configuration_loader
 import tensorflow as tf
 from LatentAudio.adapters import layer_wise as ylw
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
@@ -127,7 +128,6 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
     plt.savefig(plot_save_path)
     plt.show()
     
-
 def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
 
     instance_count = Z_prime.shape[0]
@@ -299,10 +299,8 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
 if __name__ == "__main__":
     
     # Load Configuration
-    import json, os
-    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
-        configuration = json.load(f)
-
+    configuration = configuration_loader.load()
+    
     # Configuration
     batch_size = configuration['flow_model_batch_size']
     latent_transfer_sample_size = 2**12 # Needs to be large enough for samples of all conditions to appear

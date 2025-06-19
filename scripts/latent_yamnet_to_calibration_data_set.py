@@ -1,6 +1,7 @@
 import sys
 sys.path.append(".")
 from LatentAudio import utilities as utl
+from LatentAudio.configurations import loader as configuration_loader
 import os, pickle as pkl, numpy as np, shutil
 def run(layer_index: int,
     dimensionality: int, 
@@ -62,12 +63,17 @@ def run(layer_index: int,
     print("\n\tRun Completed")
 
 if __name__ == "__main__":
-
     # Load Configuration
-    import json, os
-    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
-        configuration = json.load(f)
-
+    configuration = configuration_loader.load()
+    parser.add_argument("--sound_name_to_Y_labels", help="A dictionary mapping each sound file name to a corresponding list of numeric y-labels. The list should be as long as the number of non-residual factors that shall be part of the modelling. For example, with 4 materials and 2 actions, a file name 'MT', abbreviating metal tapping, could be mapped to [3,1] if metal is the material with index 3 and tapping the action with index 1. Indices are assumed to be start at 0.", type=str)
+    
+    # Describe mapping from audio file name to factor-wise class indices
+    sound_name_to_Y_labels = {f"{m}{a}" : [material_to_index[m], action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()} # File names are of the form MA, where M is the material abbreviation and A the action abbreviation.
+    
+    # Create y
+    name = '.'.join(raw_file_name.split('.')[:-1]) # removes the file extension
+    y = np.array(sound_name_to_Y_labels[name])
+    
     # Modelling
     target_dimensionality = configuration['PCA_target_dimensionality'] # The number of dimensions of the projections
     full_dimensionality_layer_index = configuration['layer_index_full_PCA'] # For this layer, the full PCA model will be created (costly)
@@ -77,13 +83,13 @@ if __name__ == "__main__":
         
         run(layer_index=layer_index,
             dimensionality=target_dimensionality,
-            input_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'original'),
-            pca_path = os.path.join(configuration['model_folder'],'PCA and Standard Scalers',f'{target_dimensionality} dimensions'),
-            output_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'projected'))
+            input_data_path = os.path.join(*configuration['latent_yamnet_data_folder']+['original']),
+            pca_path = os.path.join(*configuration['model_folder']+['PCA and Standard Scalers',f'{target_dimensionality} dimensions']),
+            output_data_path = os.path.join(*configuration['latent_yamnet_data_folder']+['projected']))
 
     # Use the full PCA model for the layer for which disentanglement shall be performed later on
     run(layer_index=configuration['layer_index_full_PCA'],
         dimensionality=target_dimensionality,
-        input_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'original'),
-        pca_path = os.path.join(configuration['model_folder'],'PCA and Standard Scalers', 'All dimensions'),
-        output_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'projected'))
+        input_data_path = os.path.join(*configuration['latent_yamnet_data_folder']+['original']),
+        pca_path = os.path.join(*configuration['model_folder']+['PCA and Standard Scalers', 'All dimensions']),
+        output_data_path = os.path.join(*configuration['latent_yamnet_data_folder']+['projected']))

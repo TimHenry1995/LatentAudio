@@ -1,5 +1,6 @@
 import sys
 sys.path.append(".")
+from LatentAudio.configurations import loader as configuration_loader
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -141,12 +142,9 @@ def run(latent_data_folder:str,
         print(f"\t\tThe plots can be found at {figure_output_folder}")
 
 if __name__ == "__main__":
-    
     # Load Configuration
-    import json, os
-    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
-        configuration = json.load(f)
-
+    configuration = configuration_loader.load()
+    
     run(latent_data_folder=os.path.join(configuration['latent_yamnet_data_folder'],'projected', f"{configuration['PCA_target_dimensionality']} dimensions"),
         figure_output_folder=os.path.join(configuration['plots_folder'],'explore latent yamnet', f"{configuration['PCA_target_dimensionality']} dimensions"),
         cross_validation_folds = configuration['knn_cross_validation_folds'],

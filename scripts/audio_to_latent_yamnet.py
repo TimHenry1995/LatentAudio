@@ -1,74 +1,46 @@
 
 import sys
 sys.path.append(".")
-import tensorflow as tf
-from LatentAudio.adapters import layer_wise as ylw
+import argparse, json
+from LatentAudio.configurations import loader as configuration_loader
 import os, soundfile as sf, numpy as np, shutil
 from scipy.signal import decimate
 from typing import Dict, List
 
-def run(
-    layer_index: int,
-    waveform_file_name_to_Y_vector: Dict[str, List[int]],
-    raw_folder_path: str = os.path.join('LatentAudio','data','raw audio'),
-    augmented_folder_path: str = os.path.join('LatentAudio','data','augmented audio'),
-    latent_data_path: str = os.path.join('LatentAudio','data','latent yamnet','original')
+def run_at_layer(
+    layer_index,
+    sounds_folder_path,
+    latent_representations_folder_path,
     ) -> None:
-    """This function loads each waveform file, converts it into a sequence of ca. 1 second long spectrogram slices and passes them through Yamnet up until `layer_index`.
-    Each slice will then be flattened into a long vector and saved to disk with the name \<waveform file name>\_X\_\<slice index>.npy next to a small file called \<waveform file name>\_Y\_\<slice index>.npy storing the vector with the factor-wise class indices of that slice.
-    For example, if the waveform file for Metal Tapping was called 'MT.wav', the X files would be called 'MT_X_1.npy', 'MT_X_2.npy', etc. and the Y files 'MT_Y_1.npy', 'MT_Y_2.npy' etc.
-    Note that this function initially deletes the output folder (if exists) and then recreates it to save only the new data in it. Hence, any old data in that folder will get lost.
-    Apart from that, this function cleares the current Keras session and hence any variables stored in it will get lost.
 
-    :param layer_index: The index of the Yamnet layer for which the latent vector shall be computed.
-    :type layer_index: int
-    :param waveform_file_name_to_Y_vector: A dictionary mapping the waveform file names (without their file extension) to Y vectors that will then be stored for each sound slice. An example entry is 'MT' : [2,3] in case metal (M) is the material with index 2 and tapping (T) the action with index 3.
-    :type waveform_file_name_to_Y_vector: Dict[str, int]
-    :param raw_folder_path: The path to the folder containing the raw, i.e. waveform data before augmentation. This audio data needs to be sampled at 48 Khz with int16 bit rate.
-    :type raw_folder_path: str
-    :param augmented_folder_path: The path to the folder containing the augmented, i.e. waveform data that augments the raw data. Same sampling rate and bitrate is assumed. You can set this to None if you do not intend to use augmented data.
-    :type augmented_folder_path: str
-    :param latent_data_path: The path to the folder in which the latent representations shall be stored. For the given `layer_index`, a new folder will be created inside that folder to store the output files.
-    :type latent_data_path: str
-    """
-
-    print(f"Running script to convert audio to latent yamnet layer {layer_index}.")
-    
-    # Initialization
-    raw_file_names = os.listdir(raw_folder_path) # Assumed to have material as first letter and action as second letter
-    for file_name in reversed(raw_file_names):
-        if '.wav' not in file_name: raw_file_names.remove(file_name)
-
-    if not os.path.exists(latent_data_path): os.makedirs(latent_data_path)
-    
+    # Prepare Yamnet
+    import tensorflow as tf
+    from LatentAudio.adapters import layer_wise as ylw
     tf.keras.backend.clear_session() # Need to clear session because otherwise yamnet cannot be loaded
     yamnet = ylw.LayerWiseYamnet()
     yamnet.load_weights(os.path.join('LatentAudio','plugins','yamnet','yamnet.h5'))
+    
+    # Ensure the output folders exists
+    layer_path = os.path.join(latent_representations_folder_path, f'Layer {layer_index}')
+    if not os.path.exists(layer_path): os.makedirs(layer_path)
 
-    layer_path = os.path.join(latent_data_path,f'Layer {layer_index}')
+    # Log
+    print(f"\nConverting sounds to latent Yamnet representations at layer {layer_index}.")
+    
+    # Compile list of .wav filenames
+    file_names = os.listdir(sounds_folder_path)
+    for file_name in reversed(file_names):
+        if not '.wav' in file_name: file_names.remove(file_name)
 
-    # This line deletes any content in the output folder 
-    if os.path.exists(layer_path): shutil.rmtree(layer_path)
-    os.makedirs(layer_path)
-
-    # Preprocess all files
-    for r, raw_file_name in enumerate(raw_file_names):
+    print(f"\r\t0 % Completed", end='')
+    for r, sound_file_name in enumerate(file_names):
         # Load .wav file
-        waveform, sampling_rate = sf.read(os.path.join(raw_folder_path, raw_file_name), dtype=np.int16)
-        assert sampling_rate == 48000, f"The sampling rate of the raw audio was assumed to be 48000 in order to apply the decimation algorithm and achieve yamnets 16000. The provided audio has sampling rate {sampling_rate}. You need to use a different downsampling method, e.g. from sklearn to meet yamnet's requirement."
-        if augmented_folder_path is not None:
-            waveform_a, sampling_rate_a = sf.read(os.path.join(augmented_folder_path, raw_file_name), dtype=np.int16)
-            assert sampling_rate_a == 48000, f"The sampling rate of the augmented audio was assumed to be 48000 in order to apply the decimation algorithm and achieve yamnets 16000. The provided audio has sampling rate {sampling_rate_a}. You need to use a different downsampling method, e.g. from sklearn to meet yamnet's requirement."
+        waveform, sampling_rate = sf.read(os.path.join(sounds_folder_path,sound_file_name), dtype=np.int16)
+        assert sampling_rate == 48000, f"The sampling rate of the sound file {sound_file_name} was assumed to be 48000 in order to apply the decimation algorithm and achieve Yamnet's 16000. The provided audio has sampling rate {sampling_rate}. You need to use a different downsampling method, e.g. from sklearn to meet Yamnet's requirement."
         
         # Normalize
         waveform =  waveform.astype('float32')
         waveform = waveform / np.max(waveform)
-        if augmented_folder_path is not None:
-            waveform_a = waveform_a.astype('float32')
-            waveform_a = waveform_a / np.max(waveform_a)
-
-            # Concatenate raw and augmented
-            waveform = np.concatenate([waveform, waveform_a])
         
         # Down-sample to yamnet's 16000
         waveform = decimate(waveform, 3)
@@ -77,39 +49,79 @@ def run(
         # Pass through yamnet up until target layer
         latent = yamnet.call_until_layer(waveform=waveform, layer_index=layer_index).numpy()
 
-        # Create y
-        name = '.'.join(raw_file_name.split('.')[:-1]) # removes the file extension
-        y = np.array(waveform_file_name_to_Y_vector[name])
-
         # Save
         for s, slice in enumerate(latent):
-            np.save(os.path.join(layer_path, f"{name}_X_{s}.npy"), np.reshape(slice,[-1])) 
-            np.save(os.path.join(layer_path, f"{name}_Y_{s}.npy"), y) 
-        print(f"\r\t{np.round(100*(r+1)/len(raw_file_names))}% Completed", end='')
+            np.save(os.path.join(layer_path, f"{sound_file_name[:-4]}_X_{s}.npy"), np.reshape(slice,[-1]))
+        print(f"\r\t{np.round(100*(r+1)/len(file_names))} % Completed", end='')
 
         # Delete singleton
         del latent
 
-    print("\n\tRun Completed")
-
 if __name__ == "__main__":
-    # Load Configuration
-    import json, os
-    with open(os.path.join('LatentAudio','configuration.json'),'r') as f:
-        configuration = json.load(f)
+    
+    ### Parse input arguments
+    parser = argparse.ArgumentParser(
+        prog="audio_to_latent_yamnet",
+        description='''This script loads a set of sound files from the given sounds_folder and passes each of them through the Yamnet convolutional neural network. 
+                        For a given sound, Yamnet will create a spectrogram and split it into ca. 1-second long, partially ovelapping slices. 
+                        Each slice is then passed through Yamnet's convolutional layers. 
+                        At each of the here specified layer_indices, the latent representation of a given slice will be extracted and saved to disk.
+                        Saving takes place in the provided latent_representations_folder by first creating a subfolder named as the current Yamnet layer (if it does not already exist). 
+                        Inside that subfolder, each slice is saved with the file name <waveform file name>_X_<slice index>.npy.
+                        For example, if the waveform file for Metal Tapping was called 'MT.wav', the slice files would be called 'MT_X_1.npy', 'MT_X_2.npy', etc.
+                        
+                        There are two ways to use this script. The first way is to pass a configuration_step and a configuration_file_path which will then be used to read the values for all other arguments.
+                        The second way is to manually pass all these other arguments while calling the script.
+                        For the latter option, all arguments are expected to be json strings such that they can be parsed into proper Python types. 
+                        When writing a string inside a json string, use the excape character and double quotes instead of single quotes to prevent common parsing errors.''')
 
-    # Describe mapping from audio file name to factor-wise class indices
-    material_to_index = configuration['material_to_index']
-    action_to_index = configuration['action_to_index']
-    waveform_file_name_to_Y_vector = {f"{m}{a}" : [material_to_index[m],action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()} # File names are of the form MA, where M is the material abbreviation and A the action abbreviation.
+    parser.add_argument("--sounds_folder", help="A list of strings that, when concatenated using the os-specific separator, result in a path to a folder containing the sound data in .wav format. This sound data needs to be sampled at 48 Khz with int16 bit rate.", type=str)
+    parser.add_argument("--latent_representations_folder", help="A list of strings that, when concatenated using the os-specific separator, result in a path to a folder in which the latent representations shall be stored. If the folder does not yet exist, it will be created. If it already exists, it will not be replaced.", type=str)
+    parser.add_argument("--layer_indices", help="A list containing the indices of the Yamnet layers for which the latent vectors of sounds shall be computed.", type=str)
+    parser.add_argument("--configuration_file_path", help=f'A path to a json configuration file.{configuration_loader.CONFIGURATION_FILE_SPECIFICATION}', type=str)
+    parser.add_argument("--configuration_step", help="An int pointing to the step in the configuration_file that should be read.", type=int)
+
+    # Parse args
+    args = parser.parse_args()
+    
+    # User provided no configuration file
+    if args.configuration_file_path == None:
+        # Assert all other arguments (except configuration step) are provided
+        assert args.sounds_folder != None and args.latent_representations_folder != None and args.layer_indices != None, "If no configuration file is provided, then all other arguments must be provided."
+    
+        sounds_folder = json.loads(args.sounds_folder)
+        sounds_folder_path = os.path.join(*sounds_folder)
+        latent_representations_folder = json.loads(args.latent_representations_folder)
+        latent_representations_folder_path = os.path.join(*latent_representations_folder)
+        layer_indices = json.loads(args.layer_indices)
+
+    # User provided configuration file.
+    else:
+        # Make sure step is provided but no other arguments are.
+        assert args.sounds_folder == None and args.latent_representations_folder == None and args.layer_indices == None, "If a configuration file is provided, then no other arguments shall be provided."
+        assert args.configuration_step != None, "If a configuration file is given, then also the configuration_step needs to be provided."
+
+        # Load configuration      
+        configuration = configuration_loader.load_configuration_step(file_path=args.configuration_file_path, step=args.configuration_step)
+        
+        # Ensure step corresponds to this script
+        assert configuration['script'] == 'audio_to_latent_yamnet' or configuration['script'] == 'audio_to_latent_yamnet.py', "The configuration_step points to an entry in the configuration_file that does not pertain to the current script. Ensure the 'script' attribute is equalt to 'audio_to_latent_yamnet'."
+        
+        sounds_folder_path = os.path.join(*configuration['arguments']['sounds_folder'])
+        latent_representations_folder_path = os.path.join(*configuration['arguments']['latent_representations_folder'])
+        layer_indices = configuration['arguments']['layer_indices']
+
+    print("\n\nThe script audio_to_latent_yamnet parsed the following arguments:")
+    print("\tsounds_folder path: ", sounds_folder_path)
+    print("\tlatent_representations_folder path: ", latent_representations_folder_path)
+    print("\tlayer_indices: ", layer_indices)
+    print("Starting script now:\n")
+
+    ### Start actual data processing
 
     # Convert audio to latent Yamnet
-    layer_indices = sorted(configuration['layer_indices_small_PCA'] + [configuration['layer_index_full_PCA']])
     for layer_index in layer_indices:
-        run(layer_index=layer_index,
-            waveform_file_name_to_Y_vector = waveform_file_name_to_Y_vector,
-            raw_folder_path = configuration['raw_audio_data_folder'],
-            augmented_folder_path = configuration['augmented_audio_data_folder'] if configuration['use_augmented_data'] else None, 
-            latent_data_path = os.path.join(configuration['latent_yamnet_data_folder'], 'original'))
-        
-    
+        run_at_layer(
+            layer_index=layer_index,
+            sounds_folder_path = sounds_folder_path, 
+            latent_representations_folder_path = latent_representations_folder_path)   
