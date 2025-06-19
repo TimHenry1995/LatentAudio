@@ -56,7 +56,7 @@ if __name__ == "__main__":
         configuration = configuration_loader.load_configuration_step(file_path=args.configuration_file_path, step=args.configuration_step)
         
         # Ensure step corresponds to this script
-        assert configuration['script'] == 'augment_audio' or configuration['script'] == 'augment_audio.py', "The configuration_step points to an entry in the configuration_file that does not pertain to the current script. Ensure the 'script' attribute is equalt to 'audio_to_latent_yamnet'."
+        assert configuration['script'] == 'augment_audio' or configuration['script'] == 'augment_audio.py', "The configuration_step points to an entry in the configuration_file that does not pertain to the current script. Ensure the 'script' attribute is equal to 'augment_audio'."
         
         raw_sounds_folder_path = os.path.join(*configuration['arguments']['raw_sounds_folder'])
         augmented_sounds_folder_path = os.path.join(*configuration['arguments']['augmented_sounds_folder'])

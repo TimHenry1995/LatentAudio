@@ -141,6 +141,50 @@ def run(latent_data_folder:str,
 
         print(f"\t\tThe plots can be found at {figure_output_folder}")
 
+
+def plot(figure_output_folder: str,
+         layer_index_to_dimensionality: Dict[int, str],
+         layer_index_to_explained_variances: Dict[int, np.ndarray]) -> None:
+    """
+    Creates two plots to illustrate the dimensionality distribution over Yamnet's layers (plot 1) and the distribution of explained variance over Yament's layers (plot 2).
+
+    :param figure_output_folder: The path pointing to the folder where the plots shall be stored.
+    :type figure_output_folder: str
+    :param layer_index_to_dimensionality: A dictionary mapping each layer index of Yamnet to the number of dimensions that the corresponding layer has.
+    :type layer_index_to_dimensionality: Dict[int, str]
+    :param layer_index_to_explained_variances: A dictionary mapping each layer index of Yamnet to a numpy vector storing the proportion of variance explained by principal components of that layer's space.
+    :type layer_index_to_explained_variances: Dict[int, numpy.ndarray]
+    """
+
+    # Ensure folder exists
+    if not os.path.exists(figure_output_folder): os.makedirs(figure_output_folder)
+
+    # Prepare plot for proportion of variance in the original data that is explained by the variance that is in the projection
+    dimensionality = len(list(layer_index_to_explained_variances.values())[0])
+    plt.figure(figsize=(10,5)); plt.title(f"Principal Component Analysis ({dimensionality} components)")
+
+    # Iterate the layers
+    for layer_index in layer_index_to_explained_variances.keys():
+        
+        # Plot the proportion of variance
+        plt.gca().set_prop_cycle(None)
+        R = 0
+        for i, r in enumerate(layer_index_to_explained_variances[layer_index]):
+            plt.bar([str(layer_index)],[r], bottom=R, color='white', edgecolor='black')
+            R += r
+
+        plt.ylim(0,1)
+    plt.ylabel('Explained Variance'); plt.xlabel('Layer')
+    plt.savefig(os.path.join(figure_output_folder, f"Principal Component Analysis"))
+    plt.show()
+
+    # Plot original dimensionalities of Yamnet
+    plt.figure(figsize=(10,5)); plt.title("Original Dimensionalities")
+    plt.bar([f'{key}' for key in layer_index_to_dimensionality.keys()], layer_index_to_dimensionality.values(), color='white', edgecolor='black')
+    plt.ylabel("Dimensionality"); plt.xlabel('Layer')
+    plt.savefig(os.path.join(figure_output_folder, "Original Dimensionalities"))
+    plt.show()
+
 if __name__ == "__main__":
     # Load Configuration
     configuration = configuration_loader.load()
@@ -153,3 +197,9 @@ if __name__ == "__main__":
         sample_size=configuration['knn_tSNE_sample_size'],
         random_seed=configuration['random_seed']
         )
+    
+    
+    # Plotting
+    plot(figure_output_folder = os.path.join(configuration['plots_folder'],'explore latent yamnet',f'{target_dimensionality} dimensions'),
+        layer_index_to_dimensionality = layer_index_to_dimensionality,
+        layer_index_to_explained_variances = layer_index_to_explained_variances)
