@@ -2,94 +2,170 @@ import sys
 sys.path.append(".")
 from LatentAudio import utilities as utl
 from LatentAudio.configurations import loader as configuration_loader
-import os, pickle as pkl, numpy as np, shutil
-def run(layer_index: int,
-    dimensionality: int, 
-    input_data_path: str, 
-    pca_path : str, 
-    output_data_path: str):
-    """This function takes the individual files of latent Yamnet sound representations, projects them to a manageable dimensionality and
-    combines them into a single file for calibration of the flow network. Note, the output files (if exist) will be deleted before the new files are created.
-    It is assumed that audio_to_latent_yamnet.run() and create_scaler_and_PCA_model_for_latent_yamnet.run() were executed beforehand.
-
-    :param layer_index: The index of the layer for which the data shall be converted.
-    :type layer_index: int
-    :param dimensionality: The number of dimensions that the projection shall have. Note that this number must not be greater than what the PCA model saved at `pca_path` supports.
-    :type dimensionality: int 
-    :param input_data_path: The data to the input data. These are assumed to be stored in the same format as done by `audio_to_latent_yamnet.run()`.
-    :type input_data_path: str
-    :param pca_path: The path to the standard scalers and PCA model. Models are assumed to be stored in the same format as done by `create_scalers_and_PCA_mode_for_latent_yamnet`.
-    :type pca_path: str
-    :param output_data_path: The path to the folder where the output data shall be stored. The output will be stored in a folder called 'Layer `layer_index`' as X.npy of shape [instance count, `dimensionality`] and corresponding Y.npy of shape [instance count, factor count]."""
-    
-    print(f"Running script to convert latent yamnet layer {layer_index} to calibration data set.")
-    
-    # Adjust configuration
-    output_data_path = os.path.join(output_data_path, f"{dimensionality} dimensions")
-    if not os.path.exists(output_data_path): os.makedirs(output_data_path)
-
-    # Processing
-    input_layer_path = os.path.join(input_data_path, f'Layer {layer_index}')
-    output_layer_path = os.path.join(output_data_path, f'Layer {layer_index}')
-    pca_layer_path = os.path.join(pca_path, f"Layer {layer_index}")
-    if os.path.exists(output_layer_path): shutil.rmtree(output_layer_path)
-    os.makedirs(output_layer_path)
-
-    # Loads models
-    with open(os.path.join(pca_layer_path, "Pre PCA Standard Scaler.pkl"),'rb') as fh:
-        pre_scaler = pkl.load(fh)
-
-    with open(os.path.join(pca_layer_path, "PCA.pkl"),'rb') as fh:
-        pca = pkl.load(fh)
-
-    with open(os.path.join(pca_layer_path, "Post PCA Standard Scaler.pkl"), 'rb') as fh:
-        post_scaler = pkl.load(fh)
-
-    print(f"\tThe top {dimensionality} dimensions explain {np.round(100 * np.sum(pca.explained_variance_ratio_[:dimensionality]),2)} % of variance.")
-
-    # Transform each X
-    x_file_names = utl.find_matching_strings(strings=os.listdir(input_layer_path), token='_X_')
-    Xs = [None] * len(x_file_names); Ys = [None] * len(x_file_names)
-    for i, x_file_name in enumerate(x_file_names):
-        X = np.load(os.path.join(input_layer_path, x_file_name))[np.newaxis,:]
-        Xs[i] = post_scaler.transform(pca.transform(pre_scaler.transform(X)))[:,:dimensionality] 
-        Ys[i] = np.load(os.path.join(input_layer_path, x_file_name.replace('_X_','_Y_')))[np.newaxis,:]
-      
-        print(f"\r\t{np.round(100*(i+1)/len(x_file_names))} % completed", end='')
-    # Save
-    np.save(os.path.join(output_layer_path, "X"), np.concatenate(Xs, axis=0))
-    np.save(os.path.join(output_layer_path, "Y"), np.concatenate(Ys, axis=0))
-        
-    print("\n\tRun Completed")
+import os, pickle as pkl, numpy as np, shutil, argparse, json, time
+import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    # Load Configuration
-    configuration = configuration_loader.load()
-    parser.add_argument("--sound_name_to_Y_labels", help="A dictionary mapping each sound file name to a corresponding list of numeric y-labels. The list should be as long as the number of non-residual factors that shall be part of the modelling. For example, with 4 materials and 2 actions, a file name 'MT', abbreviating metal tapping, could be mapped to [3,1] if metal is the material with index 3 and tapping the action with index 1. Indices are assumed to be start at 0.", type=str)
-    
-    # Describe mapping from audio file name to factor-wise class indices
-    sound_name_to_Y_labels = {f"{m}{a}" : [material_to_index[m], action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()} # File names are of the form MA, where M is the material abbreviation and A the action abbreviation.
-    
-    # Create y
-    name = '.'.join(raw_file_name.split('.')[:-1]) # removes the file extension
-    y = np.array(sound_name_to_Y_labels[name])
-    
-    # Modelling
-    target_dimensionality = configuration['PCA_target_dimensionality'] # The number of dimensions of the projections
-    full_dimensionality_layer_index = configuration['layer_index_full_PCA'] # For this layer, the full PCA model will be created (costly)
-    
-    # Use the small PCA model for most layers
-    for layer_index in configuration['layer_indices_small_PCA']:     
-        
-        run(layer_index=layer_index,
-            dimensionality=target_dimensionality,
-            input_data_path = os.path.join(*configuration['latent_yamnet_data_folder']+['original']),
-            pca_path = os.path.join(*configuration['model_folder']+['PCA and Standard Scalers',f'{target_dimensionality} dimensions']),
-            output_data_path = os.path.join(*configuration['latent_yamnet_data_folder']+['projected']))
 
-    # Use the full PCA model for the layer for which disentanglement shall be performed later on
-    run(layer_index=configuration['layer_index_full_PCA'],
-        dimensionality=target_dimensionality,
-        input_data_path = os.path.join(*configuration['latent_yamnet_data_folder']+['original']),
-        pca_path = os.path.join(*configuration['model_folder']+['PCA and Standard Scalers', 'All dimensions']),
-        output_data_path = os.path.join(*configuration['latent_yamnet_data_folder']+['projected']))
+    
+    ### Parse input arguments
+    parser = argparse.ArgumentParser(
+        prog="create_scalers_and_PCA_model_for_latent_yamnet",
+        description='''This script assumes that the `audio_to_latent_yamnet` and `create_scaler_and_PCA_model_for_latent_yamnet` scripts were executed beforehand. 
+                        Then, if the `calibration_data_set_folder` already exists, it will be renamed with appendix '(old) ' and a time-stamp. The script then iterates
+                        all layers in `layer_indices` and loads the corresponding latent representations of original dimensionality from the `latent_representations_folder` 
+                        as well as the standard scalers and PCA model from `PCA_and_standard_scaler_folder` and projects the flattened data down to the desired dimensionality given by `target_dimensionalities`.
+                        Then, the script creates a new folder named by that layer inside the `calibration_data_set_folder` and saves the projections as one large file called 'X.npy' of shape [instance count, target_dimensionality]
+                        Next to that, the script also maps the file names from the latent representations to factor-wise numeric labels using `file_name_prefix_to_factor_wise_label`
+                        and stores them in one large file called `Y.npy` of shape [instance count, factor count].
+                        Furthermore, the script creates a stacked bar-chart to illustrate the proportion of explained variance per projected dimension (one bar stacks the variance for all included components) for each layer (one bar per layer).
+                        The figure will be saved at `figure_folder` using the title 'PCA - Explained Variances'. If that file already exists, it will be renamed using the 
+                        appendix ' (old) ' and a time-stamp before the new file is saved.
+                        
+                        There are two ways to use this script. The first way is to pass a configuration_step and a configuration_file_path which will then be used to read the values for all other arguments.
+                        The second way is to manually pass all these other arguments while calling the script.
+                        For the latter option, all arguments are expected to be json strings such that they can be parsed into proper Python types. 
+                        When writing a string inside a json string, use the excape character and double quotes instead of single quotes to prevent common parsing errors.''')
+
+    parser.add_argument("--latent_representations_folder", help="A list of strings that, when concatenated using the os-specific separator, result in a path to a folder in which the latent representations are stored. The files are expected to be stored exactly as done by the audio_to_latent_yamnet script.", type=str)
+    parser.add_argument("--PCA_and_standard_scaler_folder", help="A list of strings that, when concatenated using the os-specific separator, result in a path to a folder in which the models are stored.", type=str)
+    parser.add_argument("--layer_indices", help="A list containing the indices of the Yamnet layers for which the calibration data sets shall be computed.", type=str)
+    parser.add_argument("--target_dimensionalities", help="A list of integers (or None entries) indicating for each layer in the layer_indices list to which dimensionality the projection shall be made. This needs to be at most as large as what the corresponding pre-trained PCA model supports.", type=str)
+    parser.add_argument("--calibration_data_set_folder", help="A list of strings that, when concatenated using the os-specific separator, result in a path to a folder in which the outputs shall be stored.", type=str)
+    parser.add_argument("--file_name_prefix_to_factor_wise_label", help="A dictionary (as json string) that maps from a prefix of the file name of a latent representation to its factorwise numeric labels. For example, if a latent representation of a single sound is called CD_X_1.npy, then 'CD' would be be mapped to [1,3], if C is the abbreviation for the first factor's class whose index is 1 and D the second factor's class whose index is 3. Note that the factor-wise numeric labels do not include the residual factor but only the actual factors that would be of interest to a flow model.", type=str)
+    parser.add_argument("--figure_folder", help="A list of strings (in form of one json string) that, when concatenated using the os-specific separator, result in a path to a folder where the plot of explained variances should be saved.")
+
+    parser.add_argument("--configuration_file_path", help=f'A path to a json configuration file.{configuration_loader.CONFIGURATION_FILE_SPECIFICATION}', type=str)
+    parser.add_argument("--configuration_step", help="An int pointing to the step in the configuration_file that should be read.", type=int)
+
+    # Parse args
+    args = parser.parse_args()
+    
+    # User provided no configuration file
+    if args.configuration_file_path == None:
+        # Assert all other arguments (except configuration step) are provided
+        assert args.latent_representations_folder != None and args.PCA_and_standard_scaler_folder != None and args.layer_indices != None and args.target_dimensionalities != None and args.calibration_data_set_folder != None and args.random_seeds != None and args.file_name_prefix_to_factor_wise_label != None and args.figure_folder != None, "If no configuration file is provided, then all other arguments must be provided."
+    
+        latent_representations_folder = json.loads(args.latent_representations_folder)
+        latent_representations_folder_path = os.path.join(*latent_representations_folder)
+        PCA_and_standard_scaler_folder = json.loads(args.PCA_and_standard_scaler_folder)
+        PCA_and_standard_scaler_folder_path = os.path.join(*PCA_and_standard_scaler_folder)
+        layer_indices = json.loads(args.layer_indices)
+        target_dimensionalities = json.loads(args.target_dimensionalities)
+        calibration_data_set_folder = json.loads(args.calibration_data_set_folder)
+        calibration_data_set_folder_path = os.path.join(*calibration_data_set_folder)
+        file_name_prefix_to_factor_wise_label = json.loads(args.file_name_prefix_to_factor_wise_label)
+        figure_folder = json.loads(args.figure_folder)
+        figure_folder_path = os.path.join(*figure_folder)
+        
+    # User provided configuration file.
+    else:
+        # Make sure step is provided but no other arguments are.
+        assert  args.latent_representations_folder == None and args.PCA_and_standard_scaler_folder == None and args.layer_indices == None and args.target_dimensionalities == None and args.calibration_data_set_folder == None and args.random_seeds == None and args.file_name_prefix_to_factor_wise_label == None and args.figure_folder == None, "If a configuration file is provided, then no other arguments shall be provided."
+        assert args.configuration_step != None, "If a configuration file is given, then also the configuration_step needs to be provided."
+
+        # Load configuration      
+        configuration = configuration_loader.load_configuration_step(file_path=args.configuration_file_path, step=args.configuration_step)
+        
+        # Ensure step corresponds to this script
+        assert configuration['script'] == 'latent_yamnet_to_calibration_data_set' or configuration['script'] == 'latent_yamnet_to_calibration_data_set.py', "The configuration_step points to an entry in the configuration_file that does not pertain to the current script. Ensure the 'script' attribute is equal to 'latent_yamnet_to_calibration_data_set'."
+        
+        latent_representations_folder_path = os.path.join(*configuration['arguments']['latent_representations_folder'])
+        PCA_and_standard_scaler_folder_path = os.path.join(*configuration['arguments']['PCA_and_standard_scaler_folder'])
+        layer_indices = configuration['arguments']['layer_indices']
+        target_dimensionalities = configuration['arguments']['target_dimensionalities']
+        calibration_data_set_folder_path = os.path.join(*configuration['arguments']['calibration_data_set_folder'])
+        file_name_prefix_to_factor_wise_label = configuration['arguments']['file_name_prefix_to_factor_wise_label']
+        figure_folder_path = os.path.join(*configuration['arguments']['figure_folder'])
+        
+    print("\n\n\tStarting script latent_yamnet_to_calibration_data_set")
+    print("\t\tThe script parsed the following arguments:")
+    print("\t\tlatent_representations_folder path: ", latent_representations_folder_path)
+    print("\t\tPCA_and_standard_scaler_folder path: ", PCA_and_standard_scaler_folder_path)
+    print("\t\tlayer_indices: ", layer_indices)
+    print("\t\ttarget_dimensionalities: ", target_dimensionalities)
+    print("\t\tcalibration_data_set_folder path: ", calibration_data_set_folder_path)
+    print("\t\tfile_name_prefix_to_factor_wise_label: ", file_name_prefix_to_factor_wise_label)
+    print("\t\tfigure_folder path: ", figure_folder_path)
+    print("\n\tStarting script now:\n")
+
+    ### Start actual data processing
+    
+    # Rename prexisting output folder
+    if os.path.exists(calibration_data_set_folder_path):
+        print(f"\t\tFound existing folder at {calibration_data_set_folder_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+        os.rename(calibration_data_set_folder_path, calibration_data_set_folder_path + ' (old) ' + str(time.time()))
+        
+    # Iterate layers
+    explained_variances = [None] * len(layer_indices)
+    for l, layer_index in enumerate(layer_indices):
+        print(f"\n\t\tLayer {layer_index}.")
+
+        # Manage path for layer
+        latent_representations_folder_layer_path = os.path.join(latent_representations_folder_path, f'Layer {layer_index}')
+        PCA_and_standard_scaler_folder_layer_path = os.path.join(PCA_and_standard_scaler_folder_path, f"Layer {layer_index}")
+        
+        # Loads models
+        with open(os.path.join(PCA_and_standard_scaler_folder_layer_path, "Pre PCA Standard Scaler.pkl"),'rb') as fh:
+            pre_scaler = pkl.load(fh)
+
+        with open(os.path.join(PCA_and_standard_scaler_folder_layer_path, "PCA.pkl"),'rb') as fh:
+            pca = pkl.load(fh)
+            # Extract explained proportion of variance for plotting
+            target_dimensionality = target_dimensionalities[l]
+            explained_variances[l] = pca.explained_variance_ratio_[:target_dimensionality]
+        
+        with open(os.path.join(PCA_and_standard_scaler_folder_layer_path, "Post PCA Standard Scaler.pkl"), 'rb') as fh:
+            post_scaler = pkl.load(fh)
+
+        # Iterate original latent representations
+        x_file_names = utl.find_matching_strings(strings=os.listdir(latent_representations_folder_layer_path), token='_X_')
+        Xs = np.zeros([len(x_file_names, target_dimensionality)]); 
+        Ys = np.zeros([len(x_file_names), len(file_name_prefix_to_factor_wise_label.values()[0])])
+        
+        for i, x_file_name in enumerate(x_file_names):
+            
+            # Transform them
+            X = np.load(os.path.join(latent_representations_folder_layer_path, x_file_name))
+            Xs[i,:] = post_scaler.transform(pca.transform(pre_scaler.transform(X)))[:,:target_dimensionality] 
+            
+            # Determine factorwise labels
+            file_name_prefix = x_file_name.split(sep='_X_')[0]
+            factorwise_label = file_name_prefix_to_factor_wise_label[file_name_prefix]
+            Ys[i,:] = np.array(factorwise_label)
+        
+            print(f"\r\t{np.round(100*(i+1)/len(x_file_names))} % completed", end='')
+        
+        # Save files
+        calibration_data_set_folder_layer_path = os.path.join(calibration_data_set_folder_path, f'Layer {layer_index}')
+        np.save(os.path.join(calibration_data_set_folder_layer_path, "X"), np.concatenate(Xs, axis=0))
+        np.save(os.path.join(calibration_data_set_folder_layer_path, "Y"), np.concatenate(Ys, axis=0))
+
+    # Prepare plot for proportion of variance in the original data that is explained by the variance that is in the projection
+    print(f"\t\tCreating figure for proportion of explained variances now.")
+    plt.figure(figsize=(len(layer_indices),5)); plt.title("PCA - Explained Variances")
+
+    # Iterate the layers
+    for l, layer_index in enumerate(layer_indices):
+        
+        # Plot the proportion of variance
+        plt.gca().set_prop_cycle(None)
+        R = 0
+        for i, r in enumerate(explained_variances[l]):
+            plt.bar([str(layer_index)],[r], bottom=R, color='white', edgecolor='black')
+            R += r
+
+        plt.ylim(0,1)
+    plt.ylabel('Explained Variance'); plt.xlabel('Layer')
+    
+    # Save figure
+    if not os.path.exists(figure_folder_path): os.makedirs(figure_folder_path)
+    figure_path = os.path.join(figure_folder_path, "PCA - Explained Variances")
+    if os.path.exists(figure_path): 
+        print(f"\t\tFound existing figure at {figure_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+        os.rename(figure_path, figure_path + ' (old) ' + (str)(time.time()))
+    plt.savefig(figure_path)
+    
+    # Log
+    print("\n\n\Completed script latent_yamnet_to_calibration_data_set")
+            
