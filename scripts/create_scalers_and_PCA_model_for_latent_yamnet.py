@@ -1,15 +1,12 @@
 import sys, argparse, json
 sys.path.append(".")
-import os, shutil
+import os
 from LatentAudio import utilities as utl
 from LatentAudio.configurations import loader as configuration_loader
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-import numpy as np
 import pickle as pkl
-from typing import Tuple
 import random, time
-import matplotlib.pyplot as plt
 from typing import Dict
 
 if __name__ == "__main__": 
@@ -59,7 +56,7 @@ if __name__ == "__main__":
     # User provided configuration file.
     else:
         # Make sure step is provided but no other arguments are.
-        assert  args.latent_representations_folder == None and args.PCA_and_standard_scaler_folder == None and args.layer_indices == None and args.target_dimensionalities == None and args.random_seeds == None and args.sample_sizes == None, "If a configuration file is provided, then no other arguments shall be provided."
+        assert args.latent_representations_folder == None and args.PCA_and_standard_scaler_folder == None and args.layer_indices == None and args.target_dimensionalities == None and args.random_seeds == None and args.sample_sizes == None, "If a configuration file is provided, then no other arguments shall be provided."
         assert args.configuration_step != None, "If a configuration file is given, then also the configuration_step needs to be provided."
 
         # Load configuration      
@@ -97,21 +94,17 @@ if __name__ == "__main__":
     for l, layer_index in enumerate(layer_indices):
         print(f"\n\t\tLayer {layer_index}.")
 
-        # Set random seed for sampling
-        random_seed = random_seeds[l]
-        random.seed(random_seed)
-
         # Create new folder at path
-        latent_representations_folder_path = os.path.join(latent_representations_folder_path, f'Layer {layer_index}')
-        PCA_and_standard_scaler_folder_path = os.path.join(PCA_and_standard_scaler_folder_path, f"Layer {layer_index}")
-        os.makedirs(PCA_and_standard_scaler_folder_path)
+        layer_latent_representations_folder_path = os.path.join(latent_representations_folder_path, f'Layer {layer_index}')
+        layer_PCA_and_standard_scaler_folder_path = os.path.join(PCA_and_standard_scaler_folder_path, f"Layer {layer_index}")
+        os.makedirs(layer_PCA_and_standard_scaler_folder_path)
 
         # If no sample_size provided, prepare a full pca model (costs memory, disk storage and may lead to index overflow)
         # This makes sense for layers whose original dimensionality is small enough anyways to afford a complete pca model, e.g. Yamnet layer 9
         target_dimensionality = target_dimensionalities[l]
         if target_dimensionality == None:
             # Load one instance to get shape
-            X_tmp, _ = utl.load_latent_sample(data_folder=latent_representations_folder_path, sample_size=1) # Shape == [sample size = 1, dimensionality]
+            X_tmp = utl.load_latent_sample(data_folder=layer_latent_representations_folder_path, sample_size=1, only_X=True) # Shape == [sample size = 1, dimensionality]
             target_dimensionality = X_tmp.shape[1] 
             del X_tmp
 
@@ -120,9 +113,13 @@ if __name__ == "__main__":
         if sample_size == None:
             sample_size = (int)(1.1 * target_dimensionality) # PCA needs dimensionality at least as many unique data points as target dimensions. Here we take a few more data points to hopefully have this many unique ones
                    
+        # Set random seed for sampling
+        random_seed = random_seeds[l]
+        random.seed(random_seed)
+
         # Load sample
         print("\t\t\tLoading sample of latent data", end='')
-        X_sample, Y_sample = utl.load_latent_sample(data_folder=latent_representations_folder_path, sample_size=sample_size)
+        X_sample = utl.load_latent_sample(data_folder=layer_latent_representations_folder_path, sample_size=sample_size, only_X=True)
         print(f" completed. Shape == [instance count, dimensionality] == {X_sample.shape}")
 
         # Fit scaler
@@ -144,13 +141,13 @@ if __name__ == "__main__":
         print(" completed")
 
         # Save
-        with open(os.path.join(PCA_and_standard_scaler_folder_path, "Pre PCA Standard Scaler.pkl"),"wb") as file_handle:
+        with open(os.path.join(layer_PCA_and_standard_scaler_folder_path, "Pre PCA Standard Scaler.pkl"),"wb") as file_handle:
             pkl.dump(pre_scaler, file_handle)
             
-        with open(os.path.join(PCA_and_standard_scaler_folder_path, f"PCA.pkl"),"wb") as file_handle:
+        with open(os.path.join(layer_PCA_and_standard_scaler_folder_path, f"PCA.pkl"),"wb") as file_handle:
             pkl.dump(pca, file_handle)
 
-        with open(os.path.join(PCA_and_standard_scaler_folder_path, "Post PCA Standard Scaler.pkl"), "wb") as file_handle:
+        with open(os.path.join(layer_PCA_and_standard_scaler_folder_path, "Post PCA Standard Scaler.pkl"), "wb") as file_handle:
             pkl.dump(post_scaler, file_handle)
     
     # Log

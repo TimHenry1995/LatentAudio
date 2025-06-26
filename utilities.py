@@ -20,6 +20,7 @@ def load_latent_sample(data_folder: str, sample_size: int, only_X: bool = False)
 
     # Load a sample of X and Y
     x_file_names = find_matching_strings(strings=os.listdir(data_folder), token='_X_')
+    x_file_names.sort() # Needed for reproducibilitiy
     X = [None] * sample_size
     if not only_X: Y = [None] * sample_size
     for i, j in enumerate(random.sample(range(0, len(x_file_names)), sample_size)):

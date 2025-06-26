@@ -9,6 +9,8 @@ import os, soundfile as sf, numpy as np, shutil
 from scipy.signal import decimate
 import matplotlib.pyplot as plt
 import time
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
 
 if __name__ == "__main__":
     
@@ -34,7 +36,7 @@ if __name__ == "__main__":
                         For the latter option, all arguments are expected to be json strings such that they can be parsed into proper Python types. 
                         When writing a string inside a json string, use the excape character and double quotes instead of single quotes to prevent common parsing errors.''')
 
-    parser.add_argument("--sounds_folder", help="A list of strings (in form of one json string) that, when concatenated using the os-specific separator, result in a path to a folder containing the sound data in .wav format. This sound data needs to be sampled at 48 Khz with int16 bit rate.", type=str)
+    parser.add_argument("--sounds_folder", help="A list of strings (in form of one json string) that, when concatenated using the os-specific separator, result in a path to a folder containing the sound data in .wav format. This sound data needs to be sampled at 16 Khz with int16 bit rate.", type=str)
     parser.add_argument("--sound_file_names", help="A list of strings (in form of one json string) that contains the file_names of the sounds that shall be converted.", type=str)
     parser.add_argument("--latent_representations_folder", help="A list of strings (in form of one json string) that, when concatenated using the os-specific separator, result in a path to a folder in which the latent representations shall be stored. If the folder does not yet exist, it will be created. If it already exists, it will not be replaced.", type=str)
     parser.add_argument("--layer_indices", help="A list (in form of one json string) containing the indices of the Yamnet layers for which the latent vectors of sounds shall be computed.", type=str)
@@ -51,7 +53,7 @@ if __name__ == "__main__":
     # User provided no configuration file
     if args.configuration_file_path == None:
         # Assert all other arguments (except configuration step) are provided
-        assert args.sounds_folder != None and args.sound_file_names != None and args.latent_representations_folder != None and args.layer_indices != None and args.time_frames_per_slice != None and args.offset != None and args.figure_output_folder != None, "If no configuration file is provided, then all other arguments must be provided."
+        assert args.sounds_folder != None and args.sound_file_names != None and args.latent_representations_folder != None and args.layer_indices != None and args.time_frames_per_slice != None and args.offset != None and args.figure_folder != None, "If no configuration file is provided, then all other arguments must be provided."
     
         sounds_folder = json.loads(args.sounds_folder)
         sounds_folder_path = os.path.join(*sounds_folder)
@@ -67,7 +69,7 @@ if __name__ == "__main__":
     # User provided configuration file.
     else:
         # Make sure step is provided but no other arguments are.
-        assert args.sounds_folder == None and args.sound_file_names == None and args.latent_representations_folder == None and args.layer_indices == None and args.time_frames_per_slice == None and args.offset == None and args.figure_output_folder == None, "If a configuration file is provided, then no other arguments shall be provided."
+        assert args.sounds_folder == None and args.sound_file_names == None and args.latent_representations_folder == None and args.layer_indices == None and args.time_frames_per_slice == None and args.offset == None and args.figure_folder == None, "If a configuration file is provided, then no other arguments shall be provided."
         assert args.configuration_step != None, "If a configuration file is given, then also the configuration_step needs to be provided."
 
         # Load configuration      
@@ -102,7 +104,7 @@ if __name__ == "__main__":
         print(f"\t\tFound existing folder at {latent_representations_folder_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(latent_representations_folder_path,
                   latent_representations_folder_path + " (old) " + str(time.time()))
-        
+    
     # Convert audio to latent Yamnet
     dimensionalities = [None] * len(layer_indices)
     for l, layer_index in enumerate(layer_indices):
@@ -132,24 +134,24 @@ if __name__ == "__main__":
             
             # Pass through yamnet up until target layer
             latent = yamnet.call_until_layer(waveform=waveform, layer_index=layer_index).numpy()
-            dimensionalities[l] = np.product(latent[1:].shape) # Flattened dimensionality
-
+            dimensionalities[l] = np.product(latent.shape[1:]) # Flattened dimensionality
+            
             # Slice along time axis into slices of length time_frames_per_slice with offset
             i = 0
             for start in range(0, latent.shape[0]-time_frames_per_slice+1, offset):
                 stop = start + time_frames_per_slice
-                slice = latent[start:stop,:]
+                current_slice = latent[start:stop,:]
 
                 # Average each slice across time (axis 0)
-                slice = np.mean(slice, axis=0)
+                current_slice = np.mean(current_slice, axis=0)
 
                 # Save
-                np.save(os.path.join(layer_path, f"{sound_file_name[:-4]}_X_{i}.npy"), np.reshape(slice,[-1]))
+                np.save(os.path.join(layer_path, f"{sound_file_name[:-4]}_X_{i}.npy"), np.reshape(current_slice,[-1]))
                 i += 1
 
             # Log
             print(f"\r\t\t\t{np.round(100*(r+1)/len(sound_file_names))} % Completed", end='')
-
+            
             # Delete singleton
             del latent  
         
@@ -167,8 +169,8 @@ if __name__ == "__main__":
     if os.path.exists(figure_path): 
         print(f"\t\tFound existing figure at {figure_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(figure_path, figure_path + ' (old) ' + (str)(time.time()))
+    plt.tight_layout()
     plt.savefig(figure_path)
-    plt.show()
 
     # Log
     print("\n\n\Completed script audio_to_latent_yamnet")

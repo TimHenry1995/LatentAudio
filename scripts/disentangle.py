@@ -77,8 +77,8 @@ def load_iterators(data_path: str, factor_index_to_included_class_indices: Dict[
             Z = Z[Y[:,0] != c,:]; Y = Y[Y[:,0] != c,:]
     
     # Train validation split
-    Z_train, Z_validation, Y_train, Y_validation = test_proportion(Z,Y, test_size=validation_proportion, random_state=random_seed)
-
+    Z_train_validation, Z_validation, Y_train_validation, Y_validation = test_proportion(Z,Y, test_size=validation_proportion, random_state=random_seed)
+    
     # Create the iterators
     def similarity_function(Y_a: np.ndarray, Y_b: np.ndarray) -> np.ndarray:
         Y_ab = Y_a == Y_b
@@ -88,11 +88,10 @@ def load_iterators(data_path: str, factor_index_to_included_class_indices: Dict[
 
     train_iterator = gmd.volatile_factorized_pair_iterator(X=Z_train, Y=Y_train, similarity_function=similarity_function, batch_size=batch_size)
     validation_iterator = gmd.volatile_factorized_pair_iterator(X=Z_validation, Y=Y_validation, similarity_function=similarity_function, batch_size=batch_size)
-    batch_count = len(Z_train)//batch_size
+    
+    return train_iterator, validation_iterator, Z_train, Z_validation, Y_train, Y_validation
 
-    return train_iterator, validation_iterator, batch_count, Z_train, Z_validation, Y_train, Y_validation
-
-def plot_calibration_trajectory(means_train, stds_train, means_validate, stds_validate, batch_size, plot_save_path, epoch_count):
+def plot_calibration_trajectory(means_train, stds_train, means_validate, stds_validate, batch_size, figure_file_path, epoch_count):
     # Plot train error
     plt.figure(figsize=(10,5)); plt.title("Calibration Trajectory")
     standard_error_train = np.array(stds_train)/np.sqrt(batch_size)
@@ -108,15 +107,18 @@ def plot_calibration_trajectory(means_train, stds_train, means_validate, stds_va
 
     plt.legend([r"Train Loss $\pm$ 2 SE", r"Validation Loss $\pm$ 2 SE"])
     plt.xlabel("Epoch"); plt.ylabel("Loss")
-    plt.savefig(plot_save_path)
-    plt.show()
+
+    if os.path.exists(figure_file_path): 
+        print(f"\t\tFound existing figure at {figure_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+        os.rename(figure_file_path, figure_file_path + ' (old) ' + (str)(time.time()))
+    plt.savefig(figure_file_path)
 
 if __name__ == "__main__":
 
     ### Parse input arguments
     parser = argparse.ArgumentParser(
         prog="create_scalers_and_PCA_model_for_latent_yamnet",
-        description='''This script loads the calibration data stored by latent_yamnet_to_calibration_data_set at `calibration_data_set_folder` and calibrates a flow model on it.
+        description='''This script loads the calibration data stored by apply_scalers_and_PCA_to_latent_yamnet at `pca_projected_folder` and calibrates a flow model on it.
                     The flow model consits of multiple stages. Each stage uses a set of permutation, coupling, activation normalization and reflection layers. 
                     Calibration involves creating pairs of instances and evaluating their equality for each factor. The model is then optimized to cluster like-wise instances along their
                     corresponding factor dimensions in the output. The optimizer used for calibration is the Adam optimizer.
@@ -134,10 +136,10 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", help="An int (in form of a json string) that is used to control the number of instances per batch that are fed to the flow model during training.", type=str)
     parser.add_argument("--epoch_count", help="An int (in form of a json string) indicating how many iterations through the dataset are made during training. An iteration is defined by finding one partner instance for each instance in the given training set.", type=str)
     parser.add_argument("--learning_rate", help="A float (in form of a json string) indicating the learning rate passed to the optimizer", type=str)
-    parser.add_argument("--validation_proportion", help="A float (in form of a json string) indicating the proportions of the calibration data that should be used for validating the model.", type=str)
+    parser.add_argument("--validation_proportion", help="A float (in form of a json string) indicating the proportion of the entire data that should be used for validating the model.", type=str)
     parser.add_argument("--dimensions_per_factor", help="A list of ints (in form of a json string) indicating how many dimensions each factor should be allocated in the output of the flow model. The zeroth entry is for the residual factor, the first entry is for the first factor, the second entry for the second factor, etc. The sum of dimensions has to be equal to the dimensionality of the input to the flow model.", type=str)
     parser.add_argument("--factor_index_to_included_class_indices", help="A dictionary (in form of a json string) that maps the index of a factor to the indices of its classes that should be included in the training. This is a way to exclude unwanted classes from the calibration data if needed. The indexing of factors has to be in line with that in the Y files of the calibration data, i.e. the residual factor is excluded.", type=str)
-    parser.add_argument("--calibration_data_set_folder", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a folder in which the projections are stored.", type=str)
+    parser.add_argument("--pca_projected_folder", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a folder in which the projections are stored. This folder should directly include the data, not indirectly in e.g. a layer-specific subfolder.", type=str)
     parser.add_argument("--flow_model_folder", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a folder where the flow model shall be stored.", type=str)
     parser.add_argument("--figure_folder", help="A list of strings (in form of one json string) that, when concatenated using the os-specific separator, result in a path to a folder where the plot of the calibration trajectory should be saved.")
 
@@ -150,7 +152,7 @@ if __name__ == "__main__":
     # User provided no configuration file
     if args.configuration_file_path == None:
         # Assert all other arguments (except configuration step) are provided
-        assert args.random_seed != None and args.stage_count != None and args.batch_size != None and args.epoch_count != None and args.learning_rate != None and args.validation_proportion != None and args.dimensions_per_factor != None and args.factor_index_to_included_class_indices != None and args.calibration_data_set_folder != None and args.flow_model_folder != None and args.figure_folder != None, "If no configuration file is provided, then all other arguments must be provided."
+        assert args.random_seed != None and args.stage_count != None and args.batch_size != None and args.epoch_count != None and args.learning_rate != None and args.validation_proportion != None and args.dimensions_per_factor != None and args.factor_index_to_included_class_indices != None and args.pca_projected_folder != None and args.flow_model_folder != None and args.figure_folder != None, "If no configuration file is provided, then all other arguments must be provided."
     
         random_seed = json.loads(args.random_seed)
         stage_count = json.loads(args.stage_count)
@@ -160,8 +162,8 @@ if __name__ == "__main__":
         validation_proportion = json.loads(args.validation_proportion)
         dimensions_per_factor = json.loads(args.dimensions_per_factor)
         factor_index_to_included_class_indices = json.loads(args.factor_index_to_included_class_indices)
-        calibration_data_set_folder = json.loads(args.calibration_data_set_folder)
-        calibration_data_set_folder_path = os.path.join(*calibration_data_set_folder)
+        pca_projected_folder = json.loads(args.pca_projected_folder)
+        pca_projected_folder_path = os.path.join(*pca_projected_folder)
         flow_model_folder = json.loads(args.flow_model_folder)
         flow_model_folder_path = os.path.join(*flow_model_folder)
         figure_folder = json.loads(args.figure_folder)
@@ -170,7 +172,7 @@ if __name__ == "__main__":
     # User provided configuration file.
     else:
         # Make sure step is provided but no other arguments are.
-        assert args.random_seed == None and args.stage_count == None and args.batch_size == None and args.epoch_count == None and args.learning_rate == None and args.validation_proportion == None and args.dimensions_per_factor == None and args.factor_index_to_included_class_indices == None and args.calibration_data_set_folder == None and args.flow_model_folder == None and args.figure_folder == None, "If a configuration file is provided, then no other arguments shall be provided."
+        assert args.random_seed == None and args.stage_count == None and args.batch_size == None and args.epoch_count == None and args.learning_rate == None and args.validation_proportion == None and args.dimensions_per_factor == None and args.factor_index_to_included_class_indices == None and args.pca_projected_folder == None and args.flow_model_folder == None and args.figure_folder == None, "If a configuration file is provided, then no other arguments shall be provided."
         assert args.configuration_step != None, "If a configuration file is given, then also the configuration_step needs to be provided."
 
         # Load configuration      
@@ -187,7 +189,7 @@ if __name__ == "__main__":
         validation_proportion = configuration['arguments']['validation_proportion']
         dimensions_per_factor = configuration['arguments']['dimensions_per_factor']
         factor_index_to_included_class_indices = configuration['arguments']['factor_index_to_included_class_indices']
-        calibration_data_set_folder_path = os.path.join(*configuration['arguments']['calibration_data_set_folder'])
+        pca_projected_folder_path = os.path.join(*configuration['arguments']['pca_projected_folder'])
         flow_model_folder_path = os.path.join(*configuration['arguments']['flow_model_folder'])
         figure_folder_path = os.path.join(*configuration['arguments']['figure_folder'])
         
@@ -201,7 +203,7 @@ if __name__ == "__main__":
     print("\t\tvalidation_proportion: ", validation_proportion)
     print("\t\tdimensions_per_factor: ", dimensions_per_factor)
     print("\t\tfactor_index_to_included_class_indices: ", factor_index_to_included_class_indices)
-    print("\t\tcalibration_data_set_folder path: ", calibration_data_set_folder_path)
+    print("\t\tpca_projected_folder path: ", pca_projected_folder_path)
     print("\t\tflow_model_folder path: ", flow_model_folder_path)
     print("\t\tfigure_folder path: ", figure_folder_path)
     print("\n\tStarting script now:\n")
@@ -222,7 +224,8 @@ if __name__ == "__main__":
     flow_model_calibration_figure_file_path = flow_model_calibration_figure_file_path[:256] + '.png' # Trim path if too long
 
     # Load data iterators
-    train_iterator, validation_iterator, batch_count,_,Z_validation,_,Y_validation = load_iterators(data_path=data_path, factor_index_to_included_class_indices=factor_index_to_included_class_indices, batch_size=batch_size, validation_proportion=validation_proportion, random_seed=random_seed)
+    train_iterator, validation_iterator, _, Z_train, Z_validation, _, Y_validation = load_iterators(data_path=data_path, factor_index_to_included_class_indices=factor_index_to_included_class_indices, batch_size=batch_size, validation_proportion=validation_proportion, test_proportion=test_proportion, random_seed=random_seed)
+    
     Z_ab_sample, Y_ab_sample = next(train_iterator) # 1 Sample
 
     print("\t\tThe data is fed to the model in batches of shape:\n","Z_ab_sample: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_ab_sample: (instance count, factor count): \t', Y_ab_sample.shape)
@@ -233,11 +236,14 @@ if __name__ == "__main__":
 
     # Calibrate
     flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate))
-    means_train, stds_train, means_validation, stds_validation = flow_network.fit(epoch_count=epoch_count, batch_count=batch_count, iterator=train_iterator, iterator_validate=validation_iterator)
+    means_train, stds_train, means_validation, stds_validation = flow_network.fit(epoch_count=epoch_count, batch_count=len(Z_train)//batch_size, iterator=train_iterator, iterator_validate=validation_iterator)
 
-    plot_calibration_trajectory(means_train=means_train, stds_train=stds_train, means_validate=means_validation, stds_validate=stds_validation, batch_size=batch_size, plot_save_path=flow_model_calibration_figure_file_path, epoch_count=epoch_count)
+    plot_calibration_trajectory(means_train=means_train, stds_train=stds_train, means_validate=means_validation, stds_validate=stds_validation, batch_size=batch_size, figure_file_path=flow_model_calibration_figure_file_path, epoch_count=epoch_count)
 
     # Save existing model
+    if os.path.exists(flow_model_file_path): 
+        print(f"\t\tFound existing model at {flow_model_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+        os.rename(flow_model_file_path, flow_model_file_path + ' (old) ' + (str)(time.time()))
     flow_network.save_weights(flow_model_file_path)
 
     # Log

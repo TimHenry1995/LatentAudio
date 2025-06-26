@@ -1,5 +1,3 @@
-"""This script visualizes the model created by the disentangle script. It passes sample data through the model
-and shows in scatter plots how well the matierial and action factors are disentangled."""
 import sys
 sys.path.append(".")
 
@@ -18,76 +16,89 @@ import random
 import pickle as pkl
 
 # Define some functions
-def scatter_plot_disentangled(flow_network, Z, Y, material_labels, action_labels, plot_save_path) -> None:
-
+def scatter_plot_disentangled(flow_network, Z, Y, 
+                              factor_index_to_included_class_indices_to_names,
+                              factor_index_to_name, 
+                              figure_file_path) -> None:
+    # Convenience variables
+    first_factor_index = factor_index_to_included_class_indices_to_names.keys()[0]
+    first_factor_name = factor_index_to_name[first_factor_name]
+    first_factor_dimension = factor_index_to_dimension_index[first_factor_index]
+    first_factor_class_indices = list(factor_index_to_included_class_indices[first_factor_index].keys())
+    first_factor_class_labels = list(factor_index_to_included_class_indices_to_names[first_factor_index].values())
+    
+    second_factor_index = factor_index_to_included_class_indices_to_names.keys()[1]
+    second_factor_name = factor_index_to_name[second_factor_name]
+    second_factor_dimension = factor_index_to_dimension_index[second_factor_index]
+    second_factor_class_indices = list(factor_index_to_included_class_indices[second_factor_index].keys())
+    second_factor_class_labels = list(factor_index_to_included_class_indices_to_names[second_factor_index].values())
+   
     # Predict
     Z_tilde = flow_network(Z)
-    Z_tilde_m = Z_tilde[:,-2] # Material dimension
-    Z_tilde_a = Z_tilde[:,-1] # Action dimension
+    first_factor_Z_tilde = Z_tilde[:,first_factor_dimension] # First factor's dimension
+    second_factor_Z_tilde = Z_tilde[:,second_factor_dimension] # Second factor's dimension
 
     # Plot
     plt.subplots(2, 4, figsize=(12,6), gridspec_kw={'width_ratios': [1,5,1,5], 'height_ratios': [5,1]})
 
-    plt.suptitle(r"Disentangled Materials and Actions")
+    plt.suptitle(f"Disentangled {first_factor_name}, {second_factor_name}")
 
-    # 1. Materials
-    ms = list(set(Y[:,-2]))
-
+    # 1. First factor
     # 1.1 Vertical Boxplot
     plt.subplot(2,4,1)
-    plt.boxplot([Z_tilde_a[Y[:,-2]==m] for m in ms])
-    plt.xticks(list(range(1,len(ms)+1)), [material_labels[m] for m in ms])
-    plt.ylabel("Action Dimension")
+    plt.boxplot([second_factor_Z_tilde[Y[:,first_factor_dimension]==c] for c in first_factor_class_indices])
+    plt.xticks(list(range(1,len(first_factor_class_indices)+1)), first_factor_class_labels)
+    plt.ylabel(f"{second_factor_name} Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
     plt.yticks([])
 
     # 1.2 Horizontal Boxplot
     plt.subplot(2,4,6)
-    plt.boxplot([Z_tilde_m[Y[:,-2]==m] for m in reversed(ms)], vert=False)
-    plt.yticks(list(range(1,len(ms)+1)), [material_labels[m] for m in reversed(ms)])
-    plt.xlabel("Material Dimension")
+    plt.boxplot([first_factor_Z_tilde[Y[:,first_factor_dimension]==c] for c in reversed(first_factor_class_indices)], vert=False)
+    plt.yticks(list(range(1,len(first_factor_class_indices)+1)), reversed(first_factor_class_labels))
+    plt.xlabel(f"{first_factor_name} Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
     plt.xticks([])
 
     # 1.3 Scatter
-    plt.subplot(2,4,2); plt.title("Materials")
+    plt.subplot(2,4,2); plt.title(first_factor_name)
 
-    for m in ms:
-        plt.scatter(Z_tilde_m[Y[:,-2]==m], Z_tilde_a[Y[:,-2]==m],s=1)
-    plt.legend([material_labels[m] for m in ms])
+    for c in first_factor_class_indices:
+        plt.scatter(first_factor_Z_tilde[Y[:,first_factor_index]==c], second_factor_Z_tilde[Y[:,first_factor_index]==c],s=1)
+    plt.legend(first_factor_class_labels)
 
-    # 2. Action
-    As = list(set(Y[:,-1]))
-
+    # 2. Second factor
     # 2.1 Vertical Boxplot
     plt.subplot(2,4,3)
-    plt.boxplot([Z_tilde_a[Y[:,-1]==a] for a in As])
-    plt.xticks(list(range(1,len(As)+1)), [action_labels[a] for a in As])
-    plt.ylabel("Action Dimension")
+    plt.boxplot([second_factor_Z_tilde[Y[:,second_factor_dimension]==c] for c in second_factor_class_indices])
+    plt.xticks(list(range(1,len(first_factor_class_indices)+1)), second_factor_class_labels)
+    plt.ylabel(f"{second_factor_name} Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
     plt.yticks([])
 
     # 2.2 Horizontal Boxplot
     plt.subplot(2,4,8)
-    plt.boxplot([Z_tilde_m[Y[:,-1]==a] for a in reversed(As)], vert=False)
-    plt.yticks(list(range(1,len(As)+1)), [action_labels[a] for a in reversed(As)])
-    plt.xlabel("Material Dimension")
+    plt.boxplot([first_factor_Z_tilde[Y[:,second_factor_dimension]==c] for c in reversed(second_factor_class_indices)], vert=False)
+    plt.yticks(list(range(1,len(second_factor_class_indices)+1)), reversed(second_factor_class_labels))
+    plt.xlabel(f"{first_factor_name} Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
     plt.xticks([])
 
     # 2.3 Scatter
-    plt.subplot(2,4,4); plt.title("Actions")
+    plt.subplot(2,4,4); plt.title(second_factor_name)
 
-    for a in As:
-        plt.scatter(Z_tilde_m[Y[:,-1]==a], Z_tilde_a[Y[:,-1]==a], s=1)
-    plt.legend([action_labels[a] for a in As])
+    for c in second_factor_class_indices:
+        plt.scatter(first_factor_Z_tilde[Y[:,first_factor_dimension]==c], second_factor_Z_tilde[Y[:,second_factor_dimension]==c], s=1)
+    plt.legend(second_factor_class_labels)
 
     # Remove other axes
     plt.subplot(2,4,5); plt.axis('off'); plt.subplot(2,4,7); plt.axis('off')
-    plt.savefig(plot_save_path)
-    plt.show()
+    if os.path.exists(figure_file_path): 
+        print(f"\t\tFound existing figure at {figure_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+        os.rename(figure_file_path, figure_file_path + ' (old) ' + (str)(time.time()))
+    plt.savefig(figure_file_path)
 
-def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str) -> None:
+def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, figure_file_path: str) -> None:
 
     # Swop each factor
     swops = {'Material':['material'], 'Action':['action'], 'Material and Action':['material','action']}
@@ -124,9 +135,11 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
         plt.grid(alpha=0.25)
         if i < b-1: plt.gca().tick_params(labelbottom=False) 
         
+    if os.path.exists(figure_file_path): 
+        print(f"\t\tFound existing figure at {figure_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+        os.rename(figure_file_path, figure_file_path + ' (old) ' + (str)(time.time()))
     
-    plt.savefig(plot_save_path)
-    plt.show()
+    plt.savefig(figure_file_path)
     
 def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
 
@@ -293,30 +306,11 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
     ax.yaxis.tick_right(); ax.tick_params(axis="y",direction="in", pad=-12)
 
     plt.tight_layout()
-    plt.show()
 
 
 if __name__ == "__main__":
     
-    # Load Configuration
-    configuration = configuration_loader.load()
-    
     # Configuration
-    batch_size = configuration['flow_model_batch_size']
-    latent_transfer_sample_size = 2**12 # Needs to be large enough for samples of all conditions to appear
-    np.random.seed(configuration['random_seed'])
-    tf.keras.utils.set_random_seed(configuration['random_seed'])
-    random.seed(configuration['random_seed'])
-    stage_count = configuration['flow_model_stage_count']
-    epoch_count = configuration['flow_model_epoch_count']
-    dimensions_per_factor = configuration['flow_model_dimensions_per_factor']
-    materials_to_keep = configuration['flow_model_materials_to_keep']; actions_to_keep = configuration['flow_model_actions_to_keep']
-    materials_to_drop = list(range(6))
-    for m in reversed(materials_to_keep): materials_to_drop.remove(m)
-    actions_to_drop = list(range(4))
-    for a in reversed(actions_to_keep): actions_to_drop.remove(a)
-    m_string = ",".join(str(m) for m in materials_to_keep)
-    a_string = ",".join(str(a) for a in actions_to_keep)
     
     projected_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'projected',f'{np.sum(configuration['dimensions_per_factor'])} dimensions',f'Layer {configuration['layer_index_full_PCA']}')
     original_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'original',f'Layer {configuration['layer_index_full_PCA']}')
@@ -328,38 +322,164 @@ if __name__ == "__main__":
     flow_model_save_path = os.path.join(flow_model_save_path, f'Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
     material_labels=configuration['material_to_index'].keys(); action_labels = configuration['action_to_index'].keys()
     
+    ### Parse input arguments
+    parser = argparse.ArgumentParser(
+        prog="create_scalers_and_PCA_model_for_latent_yamnet",
+        description='''This script visualizes the model created by the disentangle script. This happens in two ways:
+                    (1) Factor disentanglement: It passes the previously PCA projected data through the flow-model and then creates two scatterplots with the same dots, yet one with 
+                    coloring for the first factor and one with coloring for the second factor. It is assumed that each of these two factors only has a single dimension in the flow-mdoel's output.
+                    (2) Latent transfer: It passes the original Yamnet latent representations of the indicated layer through the provided full PCA model and standard scalers, then takes the top k dimensions
+                    (where k is the number of dimenions that the flow-model expects) and passes them through the flow-model. In the disentangled space, for each instance (called a receptor instance), 
+                    the script takes the value along one of the factors of interest from another instance (called the donor instance) and uses it to set the receptor instance's value along that factor.
+                    It then passes both instances back via the inverse flow model, the inverse standard scalers and inverse PCA and then continues downard Yamnet processing.
+                    It then checks to what extent the output logits of Yamnet for the receptor instance assimilate to those of the donor instance.
+                    The data being passed through the flow model is the validation data from the disentangle script. Using test data would make the coordination of scripts too complicated and since the
+                    flow-model is not going to be deployed for outside use, test data is not considered worth the additional reduction in the amount of training data.
+
+                    There are two ways to use this script. The first way is to pass a configuration_step and a configuration_file_path which will then be used to read the values for all other arguments.
+                    The second way is to manually pass all these other arguments while calling the script.
+                    For the latter option, all arguments are expected to be json strings such that they can be parsed into proper Python types. 
+                    When writing a string inside a json string, use the excape character and double quotes instead of single quotes to prevent common parsing errors.''')
+    
+    parser.add_argument("--stage_count", help="An int (in form of a json string) that is used to set the number of stages in the flow model. The more stages are used, the more complex the model will be.", type=str)
+    parser.add_argument("--dimensions_per_factor", help="A list of ints (in form of a json string) indicating how many dimensions each factor should be allocated in the output of the flow model. The zeroth entry is for the residual factor, the first entry is for the first factor, the second entry for the second factor, etc. The sum of dimensions has to be equal to the dimensionality of the input to the flow model.", type=str)
+    parser.add_argument("--random_seed", help="An int (in form of a json string) that is used to set the random module or Python in order to make the instance sampling reproducible. Note, this random seed as well as the validation_proportion should be the same as for the script that calibrated the flow model in order to make sure there is no overlap between the test set and the training/ validation sets.", type=str)
+    parser.add_argument("--validation_proportion", help="A float (in form of a json string) indicating the proportion of the entire data that should be used for validating the model.", type=str)
+    parser.add_argument("--factor_index_to_dimension_index", help="A dictionary (in form of a json string) that has two entires, namely one for the first factor of interest and one for the second factor of interest. For a given entry, the key is the index of the factor and the value is the index in the corresponding dimension in the flow model's output along the last axis. This is used to extract the coordinates from the output for plotting in a scatter plot.", type=str)
+    parser.add_argument("--factor_index_to_included_class_indices_to_names", help="A dictionary (in form of a json string) that maps the index of a factor to another dictionary. That other dictionary maps the indices of its classes to their corresponding display names. The indexing of factors has to be in line with that in the Y files of the test data, i.e. the residual factor is excluded.", type=str)
+    parser.add_argument("--factor_index_to_name", help="A dictionary (in form of a json string) that maps the index of a factor to the name of that factor.", type=str)
+    parser.add_argument("--latent_representations_folder", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a folder in which the original Yamnet latent representations, i.e. before PCA projection, are stored. This folder should directly include the data, not indirectly in e.g. a layer-specific subfolder.", type=str)
+    parser.add_argument("--layer_index", help="The index (in form of a json string) pointing to the Yament layer for which the latent transfer shall be made.", type=str)
+    parser.add_argument("--pca_projected_folder", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a folder in which the projections are stored. This folder should directly include the data, not indirectly in e.g. a layer-specific subfolder.", type=str)
+    parser.add_argument("--PCA_and_standard_scaler_folder", help="A list of strings that, when concatenated using the os-specific separator, result in a path to a folder in which the models are stored.", type=str)
+    parser.add_argument("--flow_model_file", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a .h5 file where the flow model weights are stored.", type=str)
+    parser.add_argument("--figure_folder", help="A list of strings (in form of one json string) that, when concatenated using the os-specific separator, result in a path to a folder where the plot should be saved.")
+
+    parser.add_argument("--configuration_file_path", help=f'A path to a json configuration file.{configuration_loader.CONFIGURATION_FILE_SPECIFICATION}', type=str)
+    parser.add_argument("--configuration_step", help="An int pointing to the step in the configuration_file that should be read.", type=int)
+
+    # Parse args
+    args = parser.parse_args()
+    
+    # User provided no configuration file
+    if args.configuration_file_path == None:
+        # Assert all other arguments (except configuration step) are provided
+        assert args.stage_count != None and args.dimensions_per_factor != None and args.random_seed != None and args.validation_proportion != None and args.factor_index_to_dimension_index != None and args.factor_index_to_included_class_indices_to_names != None and args.factor_index_to_name != None and args.latent_representations_folder != None and args.layer_index != None and and args.pca_projected_folder != None and args.PCA_and_standard_scaler_folder != None and args.flow_model_file != None and args.figure_folder != None, "If no configuration file is provided, then all other arguments must be provided."
+    
+        stage_count = json.loads(args.stage_count)
+        dimensions_per_factor = json.loads(args.dimensions_per_factor)
+        random_seed = json.loads(args.random_seed)
+        validation_proportion = json.loads(args.validation_proportion)
+        factor_index_to_dimension_index = json.loads(args.factor_index_to_dimension_index)
+        factor_index_to_included_class_indices_to_names = json.loads(args.factor_index_to_included_class_indices_to_names)
+        factor_index_to_name = json.loads(args.factor_index_to_name)
+        latent_representations_folder = json.loads(args.latent_representations_folder)
+        latent_representations_folder_path = os.path.join(*latent_representations_folder)
+        layer_index = json.loads(args.layer_index)
+        pca_projected_folder = json.loads(args.pca_projected_folder)
+        pca_projected_folder_path = os.path.join(*pca_projected_folder)
+        PCA_and_standard_scaler_folder = json.loads(args.PCA_and_standard_scaler_folder)
+        PCA_and_standard_scaler_folder_path = os.path.join(*PCA_and_standard_scaler_folder)
+        flow_model_file = json.loads(args.flow_model_file)
+        flow_model_file_path = os.path.join(*flow_model_file)
+        figure_folder = json.loads(args.figure_folder)
+        figure_folder_path = os.path.join(*figure_folder)
+        
+    # User provided configuration file.
+    else:
+        # Make sure step is provided but no other arguments are.
+        assert args.stage_count == None and args.dimensions_per_factor == None and args.random_seed == None and args.validation_proportion == None and args.factor_index_to_dimension_index == None and args.factor_index_to_included_class_indices_to_names == None and args.factor_index_to_name == None and args.latent_representations_folder == None and args.layer_index == None args.pca_projected_folder == None and args.PCA_and_standard_scaler_folder == None and args.flow_model_file == None and args.figure_folder == None, "If a configuration file is provided, then no other arguments shall be provided."
+        assert args.configuration_step != None, "If a configuration file is given, then also the configuration_step needs to be provided."
+
+        # Load configuration      
+        configuration = configuration_loader.load_configuration_step(file_path=args.configuration_file_path, step=args.configuration_step)
+        
+        # Ensure step corresponds to this script
+        assert configuration['script'] == 'evaluate_disentangle' or configuration['script'] == 'evaluate_disentangle.py', "The configuration_step points to an entry in the configuration_file that does not pertain to the current script. Ensure the 'script' attribute is equal to 'evaluate_disentangle'."
+        
+        stage_count = configuration['arguments']['stage_count']
+        dimensions_per_factor = configuration['arguments']['dimensions_per_factor']
+        random_seed = configuration['arguments']['random_seed']
+        validation_proportion = configuration['arguments']['validation_proportion']
+        factor_index_to_dimension_index = configuration['arguments']['factor_index_to_dimension_index']
+        factor_index_to_included_class_indices_to_names = configuration['arguments']['factor_index_to_included_class_indices_to_names']
+        factor_index_to_name = configuration['arguments']['factor_index_to_name']
+        latent_representations_folder_path = os.path.join(*configuration['arguments']['latent_representations_folder'])
+        layer_index = configuration['arguments']['layer_index']
+        pca_projected_folder_path = os.path.join(*configuration['arguments']['pca_projected_folder'])
+        PCA_and_standard_scaler_folder_path = os.path.join(*configuration['arguments']['PCA_and_standard_scaler_folder'])
+        flow_model_file_path = os.path.join(*configuration['arguments']['flow_model_file'])
+        figure_folder_path = os.path.join(*configuration['arguments']['figure_folder'])
+        
+    print("\n\n\tStarting script evaluate_disentangle")
+    print("\t\tThe script parsed the following arguments:")
+    print("\t\tstage_count: ", stage_count)
+    print("\t\tdimensions_per_factor: ", dimensions_per_factor)
+    print("\t\trandom_seed: ", random_seed)
+    print("\t\tvalidation_proportion: ", validation_proportion)
+    print("\t\tfactor_index_to_dimension_index: ", factor_index_to_dimension_index)
+    print("\t\tfactor_index_to_included_class_indices_to_names: ", factor_index_to_included_class_indices_to_names)
+    print("\t\tfactor_index_to_name: ", factor_index_to_name)
+    print('\t\tlatent_representations_folder path: ', latent_representations_folder_path)
+    print('\t\tlayer_index:', layer_index)
+    print("\t\tpca_projected_folder path: ", pca_projected_folder_path)
+    print("PCA_and_standard_scaler_folder path:", PCA_and_standard_scaler_folder_path)
+    print("\t\tflow_model_file path: ", flow_model_file_path)
+    print("\t\tfigure_folder path: ", figure_folder_path)
+    print("\n\tStarting script now:\n")
+    
+    ### Start actual data processing
+
+    # Ensure figure folder exists
+    if not os.path.exists(figure_folder): os.makedirs(figure_folder)
+    
+    # Load yamnet
     tf.keras.backend.clear_session() # Need to clear session because otherwise yamnet cannot be loaded
     layer_wise_yamnet = ylw.LayerWiseYamnet()
     layer_wise_yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
 
     # Load data iterators
-    train_iterator, test_iterator, batch_count, Z_train, Z_test, Y_train, Y_test = lsd.load_iterators(data_path=projected_data_path, materials_to_drop=materials_to_drop, actions_to_drop=actions_to_drop, batch_size=batch_size)
-    Z_ab_sample, Y_ab_sample = next(train_iterator) # Sample
-
-    print("The data is fed to the model in batches of shape:\n","Z: (instance count, pair, dimensionality): \t", Z_ab_sample.shape,'\nY_sample: (instance count, factor count): \t', Y_ab_sample.shape)
+    _, validation_iterator, _, Z_validation, _, Y_validation = lsd.load_iterators(data_path=pca_projected_folder_path, factor_index_to_included_class_indices=factor_index_to_included_class_indices, validation_proportion=validation_proportion, batch_size=1) # The batch_size does not matter here
+    Z_ab_sample, Y_ab_sample = next(validation_iterator) # Sample
 
     # Create network
     flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
-    flow_network.load_weights(flow_model_save_path)
+    flow_network.load_weights(flow_model_file_path)
 
     # Evaluate
-    scatter_plot_disentangled(flow_network=flow_network, Z=Z_test, Y=Y_test, material_labels=material_labels, action_labels=action_labels, plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Scatterplots.png"))
+    scatter_plot_file_path = os.path.join(figure_folder_path, f'Flow model scatter {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices')
+    scatter_plot_file_path = scatter_plot_file_path[:256] + '.png' # Trim path if too long
 
+    # We are passing the validation data here instead of the test data because the model is not going to be deployed anyways and coordinating test data with the other scripts and other models would be very cumbersome
+    # All of the validation data will be used for the scatter plot
+    scatter_plot_disentangled(flow_network=flow_network, Z=Z_validation, Y=Y_validation, factor_index_to_included_class_indices_to_names=factor_index_to_included_class_indices_to_names,
+                              factor_index_to_name=factor_index_to_name, figure_file_path=scatter_plot_file_path)
+                              
     # Load a sample of even size from yamnets latent space
-    Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=original_data_path, sample_size=latent_transfer_sample_size)
-    for material in materials_to_drop:
-        Z_prime_sample = Z_prime_sample[Y_sample[:,-2] != material]
-        Y_sample = Y_sample[Y_sample[:,-2] != material]
+    Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=latent_representations_folder, sample_size=len(Z_validation)) # All of the validation data will be used for latent transfer
+    
+    # Exclude unwanted classes
+    for factor_index, included_class_indices_to_names in factor_index_to_included_class_indices_to_names.items():
+        factor_dimension = factor_index_to_dimension_index[factor_index]
+        class_indices_to_drop = list(set(Y_sample[:, factor_dimension]))
+        for c in reversed(class_indices_to_drop):
+            if c in list(included_class_indices_to_names.keys()): class_indices_to_drop.remove(c)
+        
+        for c in class_indices_to_drop:
+            Z_prime_sample = Z_prime_sample[Y_sample[:,factor_dimension] != c]
+            Y_sample = Y_sample[Y_sample[:,factor_dimension] != c]
 
-    for action in actions_to_drop:
-        Z_prime_sample = Z_prime_sample[Y_sample[:,-1] != action]
-        Y_sample = Y_sample[Y_sample[:,-1] != action]
-
-    with open(os.path.join(pca_model_path, 'Pre PCA Standard Scaler.pkl'), 'rb') as file_handle:
+    with open(os.path.join(PCA_and_standard_scaler_folder_path, 'Pre PCA Standard Scaler.pkl'), 'rb') as file_handle:
         pre_scaler = pkl.load(file_handle)
-    with open(os.path.join(pca_model_path, f'Complete PCA.pkl'), 'rb') as file_handle:
+    with open(os.path.join(PCA_and_standard_scaler_folder_path, f'Complete PCA.pkl'), 'rb') as file_handle:
         pca = pkl.load(file_handle)
-    with open(os.path.join(pca_model_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
+    with open(os.path.join(PCA_and_standard_scaler_folder_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
         post_scaler = pkl.load(file_handle)
 
-    plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=configuration['layer_index_full_PCA'], plot_save_path=os.path.join(plot_save_path, f"Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count} Calibrated Network Latent Transfer.png"))
+    bar_plot_file_path = os.path.join(figure_folder_path, f'Flow model bar {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices')
+    bar_plot_file_path = scatter_plot_file_path[:256] + '.png' # Trim path if too long
+
+    plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, figure_file_path=bar_plot_file_path)
+
+    # Log
+    print("\n\n\Completed script disentangle")
