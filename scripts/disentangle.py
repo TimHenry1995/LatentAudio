@@ -2,18 +2,19 @@
 Each factor shall be disentangled into their respective clases, independent of the other factor. It is possible to remove some classes because they might not all be separable.
 It is assumed that latent_yamnet_to_calibration_data_set.run() was executed apriori.
 """
-import sys
+import sys, json, argparse, time
 sys.path.append(".")
 from LatentAudio.configurations import loader as configuration_loader
 from typing import List, Any, OrderedDict, Callable, Generator, Tuple
 from gyoza.modelling import data_iterators as gmd, flow_layers as mfl, standard_layers as msl, masks as gmm
 import os, numpy as np
 import tensorflow as tf, matplotlib.pyplot as plt
-from sklearn.model_selection import test_proportion
-import warnings, random
+from sklearn.model_selection import train_test_split
+from typing import Dict
 from sklearn.decomposition import PCA
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
+import random
 
 # Define some functions
 def create_network(Z_sample: np.ndarray, stage_count: int, dimensions_per_factor: List[int]) -> mfl.SupervisedFactorNetwork:
@@ -59,25 +60,25 @@ def create_network(Z_sample: np.ndarray, stage_count: int, dimensions_per_factor
         layers[7*i+6] = mfl.Reflection(axes=[1], shape=[dimensionality], reflection_count=8)
 
     # Construct the network
-    network = mfl.SupervisedFactorNetwork(sequence=layers, dimensions_per_factor=dimensions_per_factor, sigma=0.9)
+    network = mfl.SupervisedFactorNetwork(sequence=layers, dimensions_per_factor=dimensions_per_factor, sigma=0.99)
     network(Z_sample) # Initialization of some layer parameters
 
     # Outputs
     return network
 
-def load_iterators(data_path: str, factor_index_to_included_class_indices: Dict[List[int]], batch_size: int, validation_proportion: float, random_seed: int) -> Tuple[Generator, Generator]:
+def load_iterators(data_path: str, factor_index_to_included_class_indices: Dict[int,List[int]], batch_size: int, validation_proportion: float, random_seed: int) -> Tuple[Generator, Generator]:
 
     # Load the data
     Z = np.load(os.path.join(data_path,'X.npy')); Y=np.load(os.path.join(data_path,'Y.npy'))
 
     # Eliminate classes to drop
     for factor_index, included_class_indices in factor_index_to_included_class_indices.items():
-        classes_to_drop = set(Y[:,factor_index]) - set(included_class_indices)
+        classes_to_drop = set(Y[:,(int)(factor_index)]) - set(included_class_indices)
         for c in classes_to_drop:
-            Z = Z[Y[:,0] != c,:]; Y = Y[Y[:,0] != c,:]
+            Z = Z[Y[:,(int)(factor_index)] != c,:]; Y = Y[Y[:,(int)(factor_index)] != c,:]
     
     # Train validation split
-    Z_train_validation, Z_validation, Y_train_validation, Y_validation = test_proportion(Z,Y, test_size=validation_proportion, random_state=random_seed)
+    Z_train, Z_validation, Y_train, Y_validation = train_test_split(Z,Y, test_size=validation_proportion, random_state=random_seed)
     
     # Create the iterators
     def similarity_function(Y_a: np.ndarray, Y_b: np.ndarray) -> np.ndarray:
@@ -111,10 +112,11 @@ def plot_calibration_trajectory(means_train, stds_train, means_validate, stds_va
     if os.path.exists(figure_file_path): 
         print(f"\t\tFound existing figure at {figure_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(figure_file_path, figure_file_path + ' (old) ' + (str)(time.time()))
+    plt.tight_layout()
     plt.savefig(figure_file_path)
 
 if __name__ == "__main__":
-
+    
     ### Parse input arguments
     parser = argparse.ArgumentParser(
         prog="create_scalers_and_PCA_model_for_latent_yamnet",
@@ -134,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--random_seed", help="An int (in form of a json string) that is used to set the random module or Python, numpy and keras to make the model parameter initialization and instance sampling reproducible", type=str)
     parser.add_argument("--stage_count", help="An int (in form of a json string) that is used to set the number of stages in the flow model. The more stages are used, the more complex the model will be.", type=str)
     parser.add_argument("--batch_size", help="An int (in form of a json string) that is used to control the number of instances per batch that are fed to the flow model during training.", type=str)
-    parser.add_argument("--epoch_count", help="An int (in form of a json string) indicating how many iterations through the dataset are made during training. An iteration is defined by finding one partner instance for each instance in the given training set.", type=str)
+    parser.add_argument("--epoch_count", help="An int (in form of a json string) indicating how many iterations through the dataset are made during training.", type=str)
     parser.add_argument("--learning_rate", help="A float (in form of a json string) indicating the learning rate passed to the optimizer", type=str)
     parser.add_argument("--validation_proportion", help="A float (in form of a json string) indicating the proportion of the entire data that should be used for validating the model.", type=str)
     parser.add_argument("--dimensions_per_factor", help="A list of ints (in form of a json string) indicating how many dimensions each factor should be allocated in the output of the flow model. The zeroth entry is for the residual factor, the first entry is for the first factor, the second entry for the second factor, etc. The sum of dimensions has to be equal to the dimensionality of the input to the flow model.", type=str)
@@ -158,7 +160,7 @@ if __name__ == "__main__":
         stage_count = json.loads(args.stage_count)
         batch_size = json.loads(args.batch_size)
         epoch_count = json.loads(args.epoch_count)
-        learning_rate = json.loads(learning_rate)
+        learning_rate = json.loads(args.learning_rate)
         validation_proportion = json.loads(args.validation_proportion)
         dimensions_per_factor = json.loads(args.dimensions_per_factor)
         factor_index_to_included_class_indices = json.loads(args.factor_index_to_included_class_indices)
@@ -209,7 +211,7 @@ if __name__ == "__main__":
     print("\n\tStarting script now:\n")
     
     ### Start actual data processing
-
+        
     # Set random
     np.random.seed(random_seed)
     tf.keras.utils.set_random_seed(random_seed)
@@ -217,14 +219,14 @@ if __name__ == "__main__":
     
     # File management
     if not os.path.exists(flow_model_folder_path): os.makedirs(flow_model_folder_path)
-    if not os.path.exists(figure_folder path): os.makedirs(figure_folder path)
-    flow_model_file_path = os.path.join(flow_model_folder_path, f'Flow model {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices')
+    if not os.path.exists(figure_folder_path): os.makedirs(figure_folder_path)
+    flow_model_file_path = os.path.join(flow_model_folder_path, f'Flow model {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices'.replace(":","="))
     flow_model_file_path = flow_model_file_path[:257] + '.h5' # Trim path if too long
-    flow_model_calibration_figure_file_path = os.path.join(figure_folder_path, f'Flow model loss {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices')
+    flow_model_calibration_figure_file_path = os.path.join(figure_folder_path, f'Flow model loss {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices'.replace(":","="))
     flow_model_calibration_figure_file_path = flow_model_calibration_figure_file_path[:256] + '.png' # Trim path if too long
 
     # Load data iterators
-    train_iterator, validation_iterator, _, Z_train, Z_validation, _, Y_validation = load_iterators(data_path=data_path, factor_index_to_included_class_indices=factor_index_to_included_class_indices, batch_size=batch_size, validation_proportion=validation_proportion, test_proportion=test_proportion, random_seed=random_seed)
+    train_iterator, validation_iterator, Z_train, Z_validation, Y_train, Y_validation = load_iterators(data_path=pca_projected_folder_path, factor_index_to_included_class_indices=factor_index_to_included_class_indices, batch_size=batch_size, validation_proportion=validation_proportion, random_seed=random_seed)
     
     Z_ab_sample, Y_ab_sample = next(train_iterator) # 1 Sample
 
@@ -245,6 +247,6 @@ if __name__ == "__main__":
         print(f"\t\tFound existing model at {flow_model_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(flow_model_file_path, flow_model_file_path + ' (old) ' + (str)(time.time()))
     flow_network.save_weights(flow_model_file_path)
-
+    
     # Log
     print("\n\n\Completed script disentangle")

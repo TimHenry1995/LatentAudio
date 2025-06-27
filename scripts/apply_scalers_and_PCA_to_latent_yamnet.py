@@ -6,6 +6,7 @@ import os, pickle as pkl, numpy as np, shutil, argparse, json, time
 import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
+import LatentAudio.adapters.layer_wise as ylw
 
 if __name__ == "__main__":
 
@@ -156,7 +157,7 @@ if __name__ == "__main__":
         plt.gca().set_prop_cycle(None)
         R = 0
         for i, r in enumerate(explained_variances[l]):
-            plt.bar([str(layer_index)],[r], bottom=R, color='white', edgecolor='black')
+            plt.bar([ylw.LayerWiseYamnet.layer_names[layer_index]],[r], bottom=R, color='white', edgecolor='black')
             R += r
 
         plt.ylim(0,1)

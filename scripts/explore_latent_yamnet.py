@@ -12,7 +12,7 @@ from sklearn.model_selection import cross_val_score
 from scipy import stats
 from LatentAudio import utilities as utl
 from typing import List
-
+from LatentAudio.adapters import layer_wise as ylw
 if __name__ == "__main__":
     
 
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     # Plot KNN
     print(f"\t\tPlotting KNN accuracies and TSNE scatterplots.")
     plt.figure(figsize=(len(layer_indices),7)); plt.title(f"Latent {factor_name} KNN Classification")
-    plt.boxplot([KNN_accuracies[layer_index] for layer_index in layer_indices], labels=layer_indices)
+    plt.boxplot([KNN_accuracies[layer_index] for layer_index in layer_indices], labels=[ylw.LayerWiseYamnet.layer_names[layer_index] for layer_index in layer_indices])
     
     # Add chance level line
     a = (int)(np.where(np.array(layer_indices)==first_index)[0][0])+1 # Used as x value for horizontal line
@@ -222,7 +222,7 @@ if __name__ == "__main__":
         for class_index in class_indices:
             is_instance_of_class = Ys[layer_index] == class_index
             plt.scatter(projections[layer_index][is_instance_of_class,0], projections[layer_index][is_instance_of_class,1], marker='.')
-            plt.xlabel(f'Dimension 1\nLayer {layer_index}')
+            plt.xlabel(f'Dimension 1\nLayer {ylw.LayerWiseYamnet.layer_names[layer_index]}')
         if l == 0:
             plt.legend([class_index_to_name[(str)((int)(class_index))] for class_index in class_indices])
             plt.ylabel('Dimension 2')

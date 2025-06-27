@@ -1,6 +1,6 @@
 import sys
 sys.path.append(".")
-
+import json, argparse
 from LatentAudio.scripts import disentangle as lsd
 import LatentAudio.utilities as utl
 from LatentAudio.configurations import loader as configuration_loader
@@ -14,6 +14,8 @@ plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
 import random
 import pickle as pkl
+from gyoza.utilities import math as gum
+import time
 
 # Define some functions
 def scatter_plot_disentangled(flow_network, Z, Y, 
@@ -21,18 +23,20 @@ def scatter_plot_disentangled(flow_network, Z, Y,
                               factor_index_to_name, 
                               figure_file_path) -> None:
     # Convenience variables
-    first_factor_index = factor_index_to_included_class_indices_to_names.keys()[0]
-    first_factor_name = factor_index_to_name[first_factor_name]
+    first_factor_index = list(factor_index_to_included_class_indices_to_names.keys())[0]
+    first_factor_name = factor_index_to_name[first_factor_index]
     first_factor_dimension = factor_index_to_dimension_index[first_factor_index]
-    first_factor_class_indices = list(factor_index_to_included_class_indices[first_factor_index].keys())
+    first_factor_class_indices = list(factor_index_to_included_class_indices[first_factor_index])
     first_factor_class_labels = list(factor_index_to_included_class_indices_to_names[first_factor_index].values())
-    
-    second_factor_index = factor_index_to_included_class_indices_to_names.keys()[1]
-    second_factor_name = factor_index_to_name[second_factor_name]
+    first_factor_index = (int)(first_factor_index)
+
+    second_factor_index = list(factor_index_to_included_class_indices_to_names.keys())[1]
+    second_factor_name = factor_index_to_name[second_factor_index]
     second_factor_dimension = factor_index_to_dimension_index[second_factor_index]
-    second_factor_class_indices = list(factor_index_to_included_class_indices[second_factor_index].keys())
+    second_factor_class_indices = list(factor_index_to_included_class_indices[second_factor_index])
     second_factor_class_labels = list(factor_index_to_included_class_indices_to_names[second_factor_index].values())
-   
+    second_factor_index = (int)(second_factor_index)
+
     # Predict
     Z_tilde = flow_network(Z)
     first_factor_Z_tilde = Z_tilde[:,first_factor_dimension] # First factor's dimension
@@ -41,12 +45,12 @@ def scatter_plot_disentangled(flow_network, Z, Y,
     # Plot
     plt.subplots(2, 4, figsize=(12,6), gridspec_kw={'width_ratios': [1,5,1,5], 'height_ratios': [5,1]})
 
-    plt.suptitle(f"Disentangled {first_factor_name}, {second_factor_name}")
+    plt.suptitle(f"Disentangled {first_factor_name}s and {second_factor_name}s")
 
     # 1. First factor
     # 1.1 Vertical Boxplot
     plt.subplot(2,4,1)
-    plt.boxplot([second_factor_Z_tilde[Y[:,first_factor_dimension]==c] for c in first_factor_class_indices])
+    plt.boxplot([second_factor_Z_tilde[Y[:,first_factor_index]==c] for c in first_factor_class_indices])
     plt.xticks(list(range(1,len(first_factor_class_indices)+1)), first_factor_class_labels)
     plt.ylabel(f"{second_factor_name} Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
@@ -54,7 +58,7 @@ def scatter_plot_disentangled(flow_network, Z, Y,
 
     # 1.2 Horizontal Boxplot
     plt.subplot(2,4,6)
-    plt.boxplot([first_factor_Z_tilde[Y[:,first_factor_dimension]==c] for c in reversed(first_factor_class_indices)], vert=False)
+    plt.boxplot([first_factor_Z_tilde[Y[:,first_factor_index]==c] for c in reversed(first_factor_class_indices)], vert=False)
     plt.yticks(list(range(1,len(first_factor_class_indices)+1)), reversed(first_factor_class_labels))
     plt.xlabel(f"{first_factor_name} Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
@@ -70,15 +74,15 @@ def scatter_plot_disentangled(flow_network, Z, Y,
     # 2. Second factor
     # 2.1 Vertical Boxplot
     plt.subplot(2,4,3)
-    plt.boxplot([second_factor_Z_tilde[Y[:,second_factor_dimension]==c] for c in second_factor_class_indices])
-    plt.xticks(list(range(1,len(first_factor_class_indices)+1)), second_factor_class_labels)
+    plt.boxplot([second_factor_Z_tilde[Y[:,second_factor_index]==c] for c in second_factor_class_indices])
+    plt.xticks(list(range(1,len(first_factor_class_indices)+1)), first_factor_class_labels)
     plt.ylabel(f"{second_factor_name} Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
     plt.yticks([])
 
     # 2.2 Horizontal Boxplot
     plt.subplot(2,4,8)
-    plt.boxplot([first_factor_Z_tilde[Y[:,second_factor_dimension]==c] for c in reversed(second_factor_class_indices)], vert=False)
+    plt.boxplot([first_factor_Z_tilde[Y[:,second_factor_index]==c] for c in reversed(second_factor_class_indices)], vert=False)
     plt.yticks(list(range(1,len(second_factor_class_indices)+1)), reversed(second_factor_class_labels))
     plt.xlabel(f"{first_factor_name} Dimension")
     ax = plt.gca();ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False); ax.spines['bottom'].set_visible(False); ax.spines['left'].set_visible(False)
@@ -88,7 +92,7 @@ def scatter_plot_disentangled(flow_network, Z, Y,
     plt.subplot(2,4,4); plt.title(second_factor_name)
 
     for c in second_factor_class_indices:
-        plt.scatter(first_factor_Z_tilde[Y[:,first_factor_dimension]==c], second_factor_Z_tilde[Y[:,second_factor_dimension]==c], s=1)
+        plt.scatter(first_factor_Z_tilde[Y[:,second_factor_index]==c], second_factor_Z_tilde[Y[:,second_factor_index]==c], s=1)
     plt.legend(second_factor_class_labels)
 
     # Remove other axes
@@ -96,13 +100,13 @@ def scatter_plot_disentangled(flow_network, Z, Y,
     if os.path.exists(figure_file_path): 
         print(f"\t\tFound existing figure at {figure_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(figure_file_path, figure_file_path + ' (old) ' + (str)(time.time()))
+    plt.tight_layout()
     plt.savefig(figure_file_path)
 
-def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, figure_file_path: str) -> None:
+def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, figure_file_path: str, factor_index_to_name) -> None:
 
     # Swop each factor
-    swops = {'Material':['material'], 'Action':['action'], 'Material and Action':['material','action']}
-    dissimilarities = {}
+    swops = {list(factor_index_to_name.values())[0]:['first factor'], list(factor_index_to_name.values())[1]:['second factor'], f'{list(factor_index_to_name.values())[0]} and {list(factor_index_to_name.values())[1]}':['first factor','second factor']}
     entropy = lambda P, Q: P*np.log(Q)
     dissimilarity_function = lambda P, Q: - np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
     plt.figure(figsize=(10,10)); plt.suptitle('Latent Transfer')
@@ -112,10 +116,10 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
     
     for factor_name, switch_factors in swops.items():
         # Baseline
-        P_d, P_r = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
+        P_d, P_r = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, factor_index_to_name=factor_index_to_name)
         baseline = dissimilarity_function(P_d,P_r) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
         # Experimental
-        P_d, P_r = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=False, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index)
+        P_d, P_r = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=False, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, factor_index_to_name=factor_index_to_name)
         experimental = dissimilarity_function(P_d,P_r) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
         
         
@@ -138,10 +142,10 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
     if os.path.exists(figure_file_path): 
         print(f"\t\tFound existing figure at {figure_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(figure_file_path, figure_file_path + ' (old) ' + (str)(time.time()))
-    
+    plt.tight_layout()
     plt.savefig(figure_file_path)
     
-def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int) -> None:
+def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:List[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, factor_index_to_name) -> None:
 
     instance_count = Z_prime.shape[0]
     #assert instance_count % 2 == 0, f"The number of instance was assumed to be even such that the first half of instances can be swopped with the second half. There were {instance_count} many instances provided."
@@ -159,39 +163,40 @@ def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: L
 
     # Partition the data according to classes
     partition = {}
-
-    ms = set(Y[:,-2]); As = set(Y[:,-1])
-    for m in ms:
-        partition[f"m{m}"] = np.copy(Z_tilde[Y[:,-2]==m])
+    first_factor_index = (int)(list(factor_index_to_name.keys())[0])
+    second_factor_index = (int)(list(factor_index_to_name.keys())[1])
+    f1s = set(Y[:, first_factor_index]); f2s = set(Y[:,second_factor_index])
+    for f1 in f1s:
+        partition[f"f1{f1}"] = np.copy(Z_tilde[Y[:,first_factor_index]==f1])
     
-    for a in As:
-        partition[f'a{a}'] = np.copy(Z_tilde[Y[:,-1]==a])
+    for f2 in f2s:
+        partition[f'f2{f2}'] = np.copy(Z_tilde[Y[:,second_factor_index]==f2])
 
     # Perform swops
     Z_tilde_swapped = np.copy(Z_tilde)
     for i in range(len(Z_tilde)):
         # Determine the material and action class
-        m_i = Y[i,-2]; a_i = Y[i, -1]
+        f1_i = Y[i,first_factor_index]; f2_i = Y[i, second_factor_index]
 
         # Baseline
         if baseline:
             # In baseline mode swaps will only be made for the indicated factors with instances with the same class
-            if 'material' in switch_factors:
+            if 'first factor' in switch_factors:
                 # Sample from the set of points with same material
-                Z_tilde_swapped[i, -2] = random.choice(partition[f"m{m_i}"])[-2]
-            if 'action' in switch_factors:
+                Z_tilde_swapped[i, first_factor_index] = random.choice(partition[f"f1{f1_i}"])[first_factor_index]
+            if 'second factor' in switch_factors:
                 # Sample from the set of points with same action
-                Z_tilde_swapped[i, -1] = random.choice(partition[f"a{a_i}"])[-1]
+                Z_tilde_swapped[i, second_factor_index] = random.choice(partition[f"f2{f2_i}"])[second_factor_index]
         else:
             # In experimental mode swaps will only be made for indicated factors with instances that have a different class
-            if 'material' in switch_factors:
+            if 'first factor' in switch_factors:
                 # Sample from the set of points with other material
-                m_j = random.choice(list(ms.difference({m_i})))
-                Z_tilde_swapped[i, -2] = random.choice(partition[f"m{m_j}"])[-2]
-            if 'action' in switch_factors:
+                m_j = random.choice(list(f1s.difference({f1_i})))
+                Z_tilde_swapped[i, first_factor_index] = random.choice(partition[f"f1{m_j}"])[first_factor_index]
+            if 'second factor' in switch_factors:
                 # Sample from the set of points with other action
-                a_j = random.choice(list(As.difference({a_i})))
-                Z_tilde_swapped[i, -1] = random.choice(partition[f"a{a_j}"])[-1]
+                a_j = random.choice(list(f2s.difference({f2_i})))
+                Z_tilde_swapped[i, second_factor_index] = random.choice(partition[f"f2{a_j}"])[second_factor_index]
       
     # Invert flow net
     Z_swapped = flow_network.invert(Z_tilde_swapped)
@@ -310,18 +315,6 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
 
 if __name__ == "__main__":
     
-    # Configuration
-    
-    projected_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'projected',f'{np.sum(configuration['dimensions_per_factor'])} dimensions',f'Layer {configuration['layer_index_full_PCA']}')
-    original_data_path = os.path.join(configuration['latent_yamnet_data_folder'],'original',f'Layer {configuration['layer_index_full_PCA']}')
-    flow_model_save_path = os.path.join(configuration['model_folder'], 'flow models',f'Layer {configuration['layer_index_full_PCA']}')
-    pca_model_path = os.path.join(configuration['model_folder'], 'PCA and Standard Scalers',f"Layer {configuration['layer_index_full_PCA']}")
-    plot_save_path = os.path.join(configuration['plots_folder'],'evaluate flow models', f'Layer {configuration['layer_index_full_PCA']}')
-    
-    if not os.path.exists(plot_save_path): os.makedirs(plot_save_path)
-    flow_model_save_path = os.path.join(flow_model_save_path, f'Materials {m_string} actions {a_string} stages {stage_count} epochs {epoch_count}.h5')
-    material_labels=configuration['material_to_index'].keys(); action_labels = configuration['action_to_index'].keys()
-    
     ### Parse input arguments
     parser = argparse.ArgumentParser(
         prog="create_scalers_and_PCA_model_for_latent_yamnet",
@@ -342,6 +335,7 @@ if __name__ == "__main__":
                     When writing a string inside a json string, use the excape character and double quotes instead of single quotes to prevent common parsing errors.''')
     
     parser.add_argument("--stage_count", help="An int (in form of a json string) that is used to set the number of stages in the flow model. The more stages are used, the more complex the model will be.", type=str)
+    parser.add_argument("--epoch_count", help="An int (in form of a json string) indicating how many iterations through the dataset were made during training.", type=str)
     parser.add_argument("--dimensions_per_factor", help="A list of ints (in form of a json string) indicating how many dimensions each factor should be allocated in the output of the flow model. The zeroth entry is for the residual factor, the first entry is for the first factor, the second entry for the second factor, etc. The sum of dimensions has to be equal to the dimensionality of the input to the flow model.", type=str)
     parser.add_argument("--random_seed", help="An int (in form of a json string) that is used to set the random module or Python in order to make the instance sampling reproducible. Note, this random seed as well as the validation_proportion should be the same as for the script that calibrated the flow model in order to make sure there is no overlap between the test set and the training/ validation sets.", type=str)
     parser.add_argument("--validation_proportion", help="A float (in form of a json string) indicating the proportion of the entire data that should be used for validating the model.", type=str)
@@ -352,8 +346,9 @@ if __name__ == "__main__":
     parser.add_argument("--layer_index", help="The index (in form of a json string) pointing to the Yament layer for which the latent transfer shall be made.", type=str)
     parser.add_argument("--pca_projected_folder", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a folder in which the projections are stored. This folder should directly include the data, not indirectly in e.g. a layer-specific subfolder.", type=str)
     parser.add_argument("--PCA_and_standard_scaler_folder", help="A list of strings that, when concatenated using the os-specific separator, result in a path to a folder in which the models are stored.", type=str)
-    parser.add_argument("--flow_model_file", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a .h5 file where the flow model weights are stored.", type=str)
+    parser.add_argument("--flow_model_folder", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a folder in which the model weights are saved.", type=str)
     parser.add_argument("--figure_folder", help="A list of strings (in form of one json string) that, when concatenated using the os-specific separator, result in a path to a folder where the plot should be saved.")
+    parser.add_argument("--file_name_prefix_to_factor_wise_label", help="A dictionary (as json string) that maps from a prefix of the file name of a latent representation to its factorwise numeric labels. For example, if a latent representation of a single sound is called CD_X_1.npy, then 'CD' would be be mapped to [1,3], if C is the abbreviation for the first factor's class whose index is 1 and D the second factor's class whose index is 3. Note that the factor-wise numeric labels do not include the residual factor but only the actual factors that would be of interest to a flow model.", type=str)
 
     parser.add_argument("--configuration_file_path", help=f'A path to a json configuration file.{configuration_loader.CONFIGURATION_FILE_SPECIFICATION}', type=str)
     parser.add_argument("--configuration_step", help="An int pointing to the step in the configuration_file that should be read.", type=int)
@@ -364,9 +359,10 @@ if __name__ == "__main__":
     # User provided no configuration file
     if args.configuration_file_path == None:
         # Assert all other arguments (except configuration step) are provided
-        assert args.stage_count != None and args.dimensions_per_factor != None and args.random_seed != None and args.validation_proportion != None and args.factor_index_to_dimension_index != None and args.factor_index_to_included_class_indices_to_names != None and args.factor_index_to_name != None and args.latent_representations_folder != None and args.layer_index != None and and args.pca_projected_folder != None and args.PCA_and_standard_scaler_folder != None and args.flow_model_file != None and args.figure_folder != None, "If no configuration file is provided, then all other arguments must be provided."
+        assert args.stage_count != None and args.epoch_count != None and args.dimensions_per_factor != None and args.random_seed != None and args.validation_proportion != None and args.factor_index_to_dimension_index != None and args.factor_index_to_included_class_indices_to_names != None and args.factor_index_to_name != None and args.latent_representations_folder != None and args.layer_index != None and args.pca_projected_folder != None and args.PCA_and_standard_scaler_folder != None and args.flow_model_folder != None and args.figure_folder != None and args.file_name_prefix_to_factor_wise_label != None, "If no configuration file is provided, then all other arguments must be provided."
     
         stage_count = json.loads(args.stage_count)
+        epoch_count = json.loads(args.epoch_count)
         dimensions_per_factor = json.loads(args.dimensions_per_factor)
         random_seed = json.loads(args.random_seed)
         validation_proportion = json.loads(args.validation_proportion)
@@ -380,15 +376,16 @@ if __name__ == "__main__":
         pca_projected_folder_path = os.path.join(*pca_projected_folder)
         PCA_and_standard_scaler_folder = json.loads(args.PCA_and_standard_scaler_folder)
         PCA_and_standard_scaler_folder_path = os.path.join(*PCA_and_standard_scaler_folder)
-        flow_model_file = json.loads(args.flow_model_file)
-        flow_model_file_path = os.path.join(*flow_model_file)
+        flow_model_folder = json.loads(args.flow_model_folder)
+        flow_model_folder_path = os.path.join(*flow_model_folder)
         figure_folder = json.loads(args.figure_folder)
         figure_folder_path = os.path.join(*figure_folder)
+        file_name_prefix_to_factor_wise_label = json.loads(args.file_name_prefix_to_factor_wise_label)
         
     # User provided configuration file.
     else:
         # Make sure step is provided but no other arguments are.
-        assert args.stage_count == None and args.dimensions_per_factor == None and args.random_seed == None and args.validation_proportion == None and args.factor_index_to_dimension_index == None and args.factor_index_to_included_class_indices_to_names == None and args.factor_index_to_name == None and args.latent_representations_folder == None and args.layer_index == None args.pca_projected_folder == None and args.PCA_and_standard_scaler_folder == None and args.flow_model_file == None and args.figure_folder == None, "If a configuration file is provided, then no other arguments shall be provided."
+        assert args.stage_count == None and args.epoch_count == None and args.dimensions_per_factor == None and args.random_seed == None and args.validation_proportion == None and args.factor_index_to_dimension_index == None and args.factor_index_to_included_class_indices_to_names == None and args.factor_index_to_name == None and args.latent_representations_folder == None and args.layer_index == None and args.pca_projected_folder == None and args.PCA_and_standard_scaler_folder == None and args.flow_model_folder == None and args.figure_folder == None and args.file_name_prefix_to_factor_wise_label == None, "If a configuration file is provided, then no other arguments shall be provided."
         assert args.configuration_step != None, "If a configuration file is given, then also the configuration_step needs to be provided."
 
         # Load configuration      
@@ -398,6 +395,7 @@ if __name__ == "__main__":
         assert configuration['script'] == 'evaluate_disentangle' or configuration['script'] == 'evaluate_disentangle.py', "The configuration_step points to an entry in the configuration_file that does not pertain to the current script. Ensure the 'script' attribute is equal to 'evaluate_disentangle'."
         
         stage_count = configuration['arguments']['stage_count']
+        epoch_count = configuration['arguments']['epoch_count']
         dimensions_per_factor = configuration['arguments']['dimensions_per_factor']
         random_seed = configuration['arguments']['random_seed']
         validation_proportion = configuration['arguments']['validation_proportion']
@@ -408,12 +406,14 @@ if __name__ == "__main__":
         layer_index = configuration['arguments']['layer_index']
         pca_projected_folder_path = os.path.join(*configuration['arguments']['pca_projected_folder'])
         PCA_and_standard_scaler_folder_path = os.path.join(*configuration['arguments']['PCA_and_standard_scaler_folder'])
-        flow_model_file_path = os.path.join(*configuration['arguments']['flow_model_file'])
+        flow_model_folder_path = os.path.join(*configuration['arguments']['flow_model_folder'])
         figure_folder_path = os.path.join(*configuration['arguments']['figure_folder'])
+        file_name_prefix_to_factor_wise_label = configuration['arguments']['file_name_prefix_to_factor_wise_label']
         
     print("\n\n\tStarting script evaluate_disentangle")
     print("\t\tThe script parsed the following arguments:")
     print("\t\tstage_count: ", stage_count)
+    print("\t\tepoch_count: ", epoch_count)
     print("\t\tdimensions_per_factor: ", dimensions_per_factor)
     print("\t\trandom_seed: ", random_seed)
     print("\t\tvalidation_proportion: ", validation_proportion)
@@ -423,31 +423,36 @@ if __name__ == "__main__":
     print('\t\tlatent_representations_folder path: ', latent_representations_folder_path)
     print('\t\tlayer_index:', layer_index)
     print("\t\tpca_projected_folder path: ", pca_projected_folder_path)
-    print("PCA_and_standard_scaler_folder path:", PCA_and_standard_scaler_folder_path)
-    print("\t\tflow_model_file path: ", flow_model_file_path)
+    print("\t\tPCA_and_standard_scaler_folder path:", PCA_and_standard_scaler_folder_path)
+    print("\t\tflow_model_folder path: ", flow_model_folder_path)
     print("\t\tfigure_folder path: ", figure_folder_path)
+    print("\t\tfile_name_prefix_to_factor_wise_label: ", file_name_prefix_to_factor_wise_label)
     print("\n\tStarting script now:\n")
     
     ### Start actual data processing
-
+    
     # Ensure figure folder exists
-    if not os.path.exists(figure_folder): os.makedirs(figure_folder)
+    if not os.path.exists(figure_folder_path): os.makedirs(figure_folder_path)
     
     # Load yamnet
     tf.keras.backend.clear_session() # Need to clear session because otherwise yamnet cannot be loaded
     layer_wise_yamnet = ylw.LayerWiseYamnet()
-    layer_wise_yamnet.load_weights(os.path.join('src','latent_audio','plugins','yamnet','yamnet.h5'))
+    layer_wise_yamnet.load_weights(os.path.join('LatentAudio','plugins','yamnet','yamnet.h5'))
 
     # Load data iterators
-    _, validation_iterator, _, Z_validation, _, Y_validation = lsd.load_iterators(data_path=pca_projected_folder_path, factor_index_to_included_class_indices=factor_index_to_included_class_indices, validation_proportion=validation_proportion, batch_size=1) # The batch_size does not matter here
+    factor_index_to_included_class_indices = {factor_index: [(int)(index) for index in class_index_to_names.keys()] for factor_index, class_index_to_names in factor_index_to_included_class_indices_to_names.items()}
+    _, validation_iterator, _, Z_validation, _, Y_validation = lsd.load_iterators(data_path=pca_projected_folder_path, factor_index_to_included_class_indices=factor_index_to_included_class_indices, validation_proportion=validation_proportion, batch_size=1, random_seed=random_seed) # The batch_size does not matter here
     Z_ab_sample, Y_ab_sample = next(validation_iterator) # Sample
 
     # Create network
+    flow_model_file_path = os.path.join(flow_model_folder_path, f'Flow model {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices'.replace(":","="))
+    flow_model_file_path = flow_model_file_path[:257] + '.h5' # Trim path if too long
+    
     flow_network = lsd.create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
     flow_network.load_weights(flow_model_file_path)
 
     # Evaluate
-    scatter_plot_file_path = os.path.join(figure_folder_path, f'Flow model scatter {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices')
+    scatter_plot_file_path = os.path.join(figure_folder_path, f'Flow model scatter {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices'.replace(":","="))
     scatter_plot_file_path = scatter_plot_file_path[:256] + '.png' # Trim path if too long
 
     # We are passing the validation data here instead of the test data because the model is not going to be deployed anyways and coordinating test data with the other scripts and other models would be very cumbersome
@@ -456,30 +461,46 @@ if __name__ == "__main__":
                               factor_index_to_name=factor_index_to_name, figure_file_path=scatter_plot_file_path)
                               
     # Load a sample of even size from yamnets latent space
-    Z_prime_sample, Y_sample = utl.load_latent_sample(data_folder=latent_representations_folder, sample_size=len(Z_validation)) # All of the validation data will be used for latent transfer
+    x_file_names = utl.find_matching_strings(strings=os.listdir(latent_representations_folder_path), token='_X_')
+    x_file_names.sort() # Needed to ensure that the file names are consistently ordered across runs
+    random.seed(random_seed)
+    taboo_list = random.sample(x_file_names, k=(int)((1-validation_proportion)*len(x_file_names)))
+    x_file_names = list(set(x_file_names) - set(taboo_list))
+    
     
     # Exclude unwanted classes
-    for factor_index, included_class_indices_to_names in factor_index_to_included_class_indices_to_names.items():
-        factor_dimension = factor_index_to_dimension_index[factor_index]
-        class_indices_to_drop = list(set(Y_sample[:, factor_dimension]))
-        for c in reversed(class_indices_to_drop):
-            if c in list(included_class_indices_to_names.keys()): class_indices_to_drop.remove(c)
+    for x_file_name in reversed(x_file_names):
+        valid = False
+        for prefix in file_name_prefix_to_factor_wise_label.keys():
+            if prefix in x_file_name: valid = True
+        if not valid: x_file_names.remove(x_file_name)
+    
+    x_shape = np.load(os.path.join(latent_representations_folder_path, x_file_names[0])).shape
+    Z_prime_sample = np.zeros([len(x_file_names)] + list(x_shape)); 
+    Y_sample = np.zeros([len(x_file_names), len(list(file_name_prefix_to_factor_wise_label.values())[0])])
+    
+    for i, x_file_name in enumerate(x_file_names): 
         
-        for c in class_indices_to_drop:
-            Z_prime_sample = Z_prime_sample[Y_sample[:,factor_dimension] != c]
-            Y_sample = Y_sample[Y_sample[:,factor_dimension] != c]
+        # Load
+        Z_prime_sample[i,:] = np.load(os.path.join(latent_representations_folder_path, x_file_name))[np.newaxis,:]
+        
+        # Determine factorwise labels
+        file_name_prefix = x_file_name.split(sep='_X_')[0]
+        factorwise_label = file_name_prefix_to_factor_wise_label[file_name_prefix]
+        Y_sample[i,:] = np.array(factorwise_label)
 
     with open(os.path.join(PCA_and_standard_scaler_folder_path, 'Pre PCA Standard Scaler.pkl'), 'rb') as file_handle:
         pre_scaler = pkl.load(file_handle)
-    with open(os.path.join(PCA_and_standard_scaler_folder_path, f'Complete PCA.pkl'), 'rb') as file_handle:
+    with open(os.path.join(PCA_and_standard_scaler_folder_path, f'PCA.pkl'), 'rb') as file_handle:
         pca = pkl.load(file_handle)
     with open(os.path.join(PCA_and_standard_scaler_folder_path, 'Post PCA Standard Scaler.pkl'), 'rb') as file_handle:
         post_scaler = pkl.load(file_handle)
 
-    bar_plot_file_path = os.path.join(figure_folder_path, f'Flow model bar {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices')
-    bar_plot_file_path = scatter_plot_file_path[:256] + '.png' # Trim path if too long
+    bar_plot_file_path = os.path.join(figure_folder_path, f'Flow model bar {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices'.replace(":","="))
+    bar_plot_file_path = bar_plot_file_path[:256] + '.png' # Trim path if too long
 
-    plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, figure_file_path=bar_plot_file_path)
+    plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, figure_file_path=bar_plot_file_path, factor_index_to_name=factor_index_to_name)
 
     # Log
     print("\n\n\Completed script disentangle")
+    

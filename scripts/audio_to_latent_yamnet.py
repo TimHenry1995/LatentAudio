@@ -160,7 +160,7 @@ if __name__ == "__main__":
     # Plot original dimensionalities of Yamnet
     print("\t\tCreating figure for Yamnet dimensionalities now")
     plt.figure(figsize=(len(layer_indices),5)); plt.title("Yamnet Dimensionalities")
-    plt.bar([f'{key}' for key in layer_indices], dimensionalities, color='white', edgecolor='black')
+    plt.bar([ylw.LayerWiseYamnet.layer_names[key] for key in layer_indices], dimensionalities, color='white', edgecolor='black')
     plt.ylabel("Dimensionality"); plt.xlabel('Layer')
     
     # Save figure

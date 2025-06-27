@@ -7,6 +7,7 @@ class LayerWiseYamnet(tf.keras.Model):
     """Provides an implementation of `yamnet <https://www.tensorflow.org/hub/tutorials/yamnet>`_ which allows to inspect the latent 
     representation of a particular layer.
     """
+    layer_names = ['Conv\n1'] + [f"Conv\n{i} pw" for i in range(1,14)] + ['Fully\nConnected']
 
     class Convolution(tf.keras.Model):
         """Provides an implementation of a convolution later with 2D convolution, batch normalization and ReLU activation.
