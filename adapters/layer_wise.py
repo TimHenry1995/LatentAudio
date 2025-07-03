@@ -183,7 +183,7 @@ class LayerWiseYamnet(tf.keras.Model):
         # Output
         return X
 
-    def call_from_layer(self, latent: tf.Tensor, layer_index: int) -> tf.Tensor:
+    def call_from_layer(self, latent: tf.Tensor, layer_index: int, only_logits: bool=False) -> tf.Tensor:
         """Provides a continuation of the forward propagation executed by :py:meth:`call_until_layer`. It starts at the layer at index
         ``layer_index`` and stops at the last layer of yamnet. 
 
@@ -203,8 +203,11 @@ class LayerWiseYamnet(tf.keras.Model):
             X = layer(X)
         X = self.__pooling__(X) # Embeddings
         X = self.__dense__(X) # Logits
-        class_probabilities = self.__activation__(X)
+        if only_logits: return X
+        else:
 
-        # Output
-        return class_probabilities
+            class_probabilities = self.__activation__(X)
+
+            # Output
+            return class_probabilities
 

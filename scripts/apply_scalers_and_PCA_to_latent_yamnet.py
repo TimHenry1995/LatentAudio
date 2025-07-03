@@ -121,8 +121,15 @@ if __name__ == "__main__":
         with open(os.path.join(PCA_and_standard_scaler_folder_layer_path, "Post PCA Standard Scaler.pkl"), 'rb') as fh:
             post_scaler = pkl.load(fh)
 
-        # Iterate original latent representations
+        # Remove unwanted file names
         x_file_names = utl.find_matching_strings(strings=os.listdir(latent_representations_folder_layer_path), token='_X_')
+        for x_file_name in reversed(x_file_names):
+            found = False
+            for label in file_name_prefix_to_factor_wise_label.keys(): 
+                if label in x_file_name: found = True
+            if not found: x_file_names.remove(x_file_name)
+
+        # Iterate original latent representations
         x_file_names.sort() # Needed to ensure that the file names are consistently ordered across runs
         Xs = np.zeros([len(x_file_names), target_dimensionality]); 
         Ys = np.zeros([len(x_file_names), len(list(file_name_prefix_to_factor_wise_label.values())[0])])
@@ -149,7 +156,7 @@ if __name__ == "__main__":
     # Prepare plot for proportion of variance in the original data that is explained by the variance that is in the projection
     print(f"\n\t\tCreating figure for proportion of explained variances now.")
     plt.figure(figsize=(len(layer_indices),5)); plt.title("PCA - Explained Variances")
-
+    
     # Iterate the layers
     for l, layer_index in enumerate(layer_indices):
         

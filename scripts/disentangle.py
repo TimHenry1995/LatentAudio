@@ -60,7 +60,7 @@ def create_network(Z_sample: np.ndarray, stage_count: int, dimensions_per_factor
         layers[7*i+6] = mfl.Reflection(axes=[1], shape=[dimensionality], reflection_count=8)
 
     # Construct the network
-    network = mfl.SupervisedFactorNetwork(sequence=layers, dimensions_per_factor=dimensions_per_factor, sigma=0.99)
+    network = mfl.SupervisedFactorNetwork(sequence=layers, dimensions_per_factor=dimensions_per_factor, sigma=0.999)
     network(Z_sample) # Initialization of some layer parameters
 
     # Outputs
@@ -87,8 +87,8 @@ def load_iterators(data_path: str, factor_index_to_included_class_indices: Dict[
         Y_ab = np.concatenate([residual_factor_zeros, Y_ab], axis=1)
         return Y_ab
 
-    train_iterator = gmd.volatile_factorized_pair_iterator(X=Z_train, Y=Y_train, similarity_function=similarity_function, batch_size=batch_size)
-    validation_iterator = gmd.volatile_factorized_pair_iterator(X=Z_validation, Y=Y_validation, similarity_function=similarity_function, batch_size=batch_size)
+    train_iterator = gmd.volatile_factorized_pair_iterator(X=Z_train, Y=Y_train, similarity_function=similarity_function, batch_size=batch_size, minimum_similarity=1.0)
+    validation_iterator = gmd.volatile_factorized_pair_iterator(X=Z_validation, Y=Y_validation, similarity_function=similarity_function, batch_size=batch_size, minimum_similarity=1.0)
     
     return train_iterator, validation_iterator, Z_train, Z_validation, Y_train, Y_validation
 
@@ -209,7 +209,19 @@ if __name__ == "__main__":
     print("\t\tflow_model_folder path: ", flow_model_folder_path)
     print("\t\tfigure_folder path: ", figure_folder_path)
     print("\n\tStarting script now:\n")
-    
+    """
+    random_seed = 24623
+    stage_count = 1
+    batch_size = 1024
+    epoch_count = 50
+    learning_rate = 0.0005
+    validation_proportion = 0.3
+    dimensions_per_factor = [62, 1, 1]
+    factor_index_to_included_class_indices = {'0': [0, 1, 2, 3, 4], '1': [0, 1, 2]}
+    pca_projected_folder_path = "E:\\LatentAudio\complete configuration\data\latent\pca projected\Layer 9"
+    flow_model_folder_path = "E:\\LatentAudio\complete configuration\models\\flow"
+    figure_folder_path = "E:\\LatentAudio\complete configuration\\figures"
+    """
     ### Start actual data processing
         
     # Set random
@@ -234,10 +246,11 @@ if __name__ == "__main__":
 
     # Create network
     flow_network = create_network(Z_sample=Z_ab_sample[:,0,:], stage_count=stage_count, dimensions_per_factor=dimensions_per_factor)
-    #if os.path.exists(flow_model_file_path): flow_network.load_weights(flow_model_file_path)
+    if os.path.exists(flow_model_file_path): flow_network.load_weights(flow_model_file_path)
 
     # Calibrate
     flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate))
+    print("\t\tNow fitting the flow model to the data.")
     means_train, stds_train, means_validation, stds_validation = flow_network.fit(epoch_count=epoch_count, batch_count=len(Z_train)//batch_size, iterator=train_iterator, iterator_validate=validation_iterator)
 
     plot_calibration_trajectory(means_train=means_train, stds_train=stds_train, means_validate=means_validation, stds_validate=stds_validation, batch_size=batch_size, figure_file_path=flow_model_calibration_figure_file_path, epoch_count=epoch_count)
