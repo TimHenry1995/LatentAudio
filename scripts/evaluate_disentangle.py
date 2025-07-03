@@ -22,18 +22,19 @@ from scipy import stats
 def scatter_plot_disentangled(flow_network, Z, Y, 
                               factor_index_to_included_class_indices_to_names,
                               factor_index_to_name, 
+                              factor_index_to_z_tilde_dimension,
                               figure_file_path) -> None:
     # Convenience variables
     first_factor_index = list(factor_index_to_included_class_indices_to_names.keys())[0]
     first_factor_name = factor_index_to_name[first_factor_index]
-    first_factor_dimension = factor_index_to_dimension_index[first_factor_index]
+    first_factor_dimension = factor_index_to_z_tilde_dimension[first_factor_index]
     first_factor_class_indices = list(factor_index_to_included_class_indices[first_factor_index])
     first_factor_class_labels = list(factor_index_to_included_class_indices_to_names[first_factor_index].values())
     first_factor_index = (int)(first_factor_index)
 
     second_factor_index = list(factor_index_to_included_class_indices_to_names.keys())[1]
     second_factor_name = factor_index_to_name[second_factor_index]
-    second_factor_dimension = factor_index_to_dimension_index[second_factor_index]
+    second_factor_dimension = factor_index_to_z_tilde_dimension[second_factor_index]
     second_factor_class_indices = list(factor_index_to_included_class_indices[second_factor_index])
     second_factor_class_labels = list(factor_index_to_included_class_indices_to_names[second_factor_index].values())
     second_factor_index = (int)(second_factor_index)
@@ -104,11 +105,11 @@ def scatter_plot_disentangled(flow_network, Z, Y,
     plt.tight_layout()
     plt.savefig(figure_file_path)
 
-def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, figure_file_path: str, factor_index_to_name, factor_index_to_z_tilde_dimension: Dict[int,int],y_factor_index_to_dimension_index: Dict[int,int]) -> None:
+def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, figure_file_path: str, factor_index_to_name, factor_index_to_z_tilde_dimension: Dict[int,int],factor_index_to_y_dimension: Dict[int,int]) -> None:
 
     # Swop each factor
     swops = {list(factor_index_to_name.values())[0]:['first factor'], list(factor_index_to_name.values())[1]:['second factor'], f'{list(factor_index_to_name.values())[0]} and {list(factor_index_to_name.values())[1]}':['first factor','second factor']}
-    entropy = lambda P, Q: P*np.log(Q)
+    
     dissimilarity_function = lambda P, Q: np.sqrt(np.sum(np.power(P-Q, 2), axis=1))# - np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
     plt.figure(figsize=(10,10)); plt.suptitle('Latent Transfer')
     b = 1
@@ -117,21 +118,21 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
     
     for factor_name, switch_factors in swops.items():
         # Baseline
-        P, Q_before, Q_after = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, y_factor_index_to_dimension_index=y_factor_index_to_dimension_index)
+        P, Q_before, Q_after = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_y_dimension=factor_index_to_y_dimension)
         baseline = dissimilarity_function(P, Q_before) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
         experimental = dissimilarity_function(P, Q_after) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
         
         # Plot
         plt.subplot(len(swops),1,b); plt.title(factor_name)
-        plt.violinplot([np.log(baseline),np.log(experimental)], vert=False, showmedians=True)#plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)
-        plt.yticks([1,2], ['Within Class','Between Class'], rotation=90, va='center')
+        plt.violinplot([baseline,experimental], vert=False, showmedians=True)#plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)
+        plt.yticks([1,2], ['Before Transfer','After Transfer'], rotation=90, va='center')
         x_min = min(x_min, plt.xlim()[0])
         x_max = max(x_max, plt.xlim()[1])
         
         b+=1
     
     # Set labels and range
-    plt.xlabel(r"Crossentropy of $P_d$ and $P_r$")
+    plt.xlabel(r"Euclidean Distance of $P$ and $Q$")
     for i in range (1,b): 
         plt.subplot(b-1,1,i); plt.xlim([x_min, x_max])
         plt.grid(alpha=0.25)
@@ -143,7 +144,7 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
     plt.tight_layout()
     plt.savefig(figure_file_path)
     
-def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:List[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, factor_index_to_z_tilde_dimension: Dict[int,int], y_factor_index_to_dimension_index: Dict[int,int]) -> None:
+def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:List[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, factor_index_to_z_tilde_dimension: Dict[int,int], factor_index_to_y_dimension: Dict[int,int]) -> None:
 
     instance_count = Z_prime.shape[0]
     #assert instance_count % 2 == 0, f"The number of instance was assumed to be even such that the first half of instances can be swopped with the second half. There were {instance_count} many instances provided."
@@ -153,41 +154,40 @@ def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: L
         
     first_factor_index = list(factor_index_to_z_tilde_dimension.keys())[0]
     first_factor_z_tilde_dimension = factor_index_to_z_tilde_dimension[first_factor_index]
-    first_factor_y_dimension = y_factor_index_to_dimension_index[first_factor_index]
+    first_factor_y_dimension = factor_index_to_y_dimension[first_factor_index]
     first_factor_classes = set(Y[:,first_factor_y_dimension])
     second_factor_index = list(factor_index_to_z_tilde_dimension.keys())[1]
     second_factor_z_tilde_dimension = factor_index_to_z_tilde_dimension[second_factor_index]
-    second_factor_y_dimension = y_factor_index_to_dimension_index[second_factor_index]
+    second_factor_y_dimension = factor_index_to_y_dimension[second_factor_index]
     second_factor_classes = set(Y[:,second_factor_y_dimension])
 
-    if len(switch_factors) == 1:
-        for i in range(instance_count):
-            current_f1_class = Y[i,first_factor_y_dimension]
-            current_f2_class = Y[i,second_factor_y_dimension]
-        
-            # If only one factor needs to be switched, we build pairs of instances that are different for the switch factor but constant for the other factor
-            if switch_factors == ['first factor']:
-                # Choose a partner with different first factor class while holding second factor constant
-                partner_f1_class = random.sample(set(first_factor_classes) - set([current_f1_class]))
-                partner_indices[i] = random.sample(np.where(np.logical_and(Y[:, first_factor_y_dimension]==partner_f1_class, Y[:, second_factor_y_dimension]==current_f2_class)))
+    for i in range(instance_count):
+        current_f1_class = Y[i,first_factor_y_dimension]
+        current_f2_class = Y[i,second_factor_y_dimension]
+    
+        # If only one factor needs to be switched, we build pairs of instances that are different for the switch factor but constant for the other factor
+        if switch_factors == ['first factor']:
+            # Choose a partner with different first factor class while holding second factor constant
+            partner_f1_class = random.sample(list(set(first_factor_classes) - set([current_f1_class])), k=1)[0]
+            partner_indices[i] = random.sample(list(np.where(np.logical_and(Y[:, first_factor_y_dimension]==partner_f1_class, Y[:, second_factor_y_dimension]==current_f2_class))[0]),k=1)[0]
 
-            elif switch_factors == ['second factor']:
-                # Choose a partner with different first factor class while holding second factor constant
-                partner_f2_class = random.sample(set(second_factor_classes) - set([current_f2_class]))
-                partner_indices[i] = random.sample(np.where(np.logical_and(Y[:, first_factor_y_dimension]==current_f1_class, Y[:, second_factor_y_dimension]==partner_f2_class)))
+        elif switch_factors == ['second factor']:
+            # Choose a partner with different first factor class while holding second factor constant
+            partner_f2_class = random.sample(list(set(second_factor_classes) - set([current_f2_class])), k=1)[0]
+            partner_indices[i] = random.sample(list(np.where(np.logical_and(Y[:, first_factor_y_dimension]==current_f1_class, Y[:, second_factor_y_dimension]==partner_f2_class))[0]),k=1)[0]
 
-            # Otherwise, both factors need to be switched
-            else:
-                partner_f1_class = random.sample(set(first_factor_classes) - set([current_f1_class]))
-                partner_f2_class = random.sample(set(second_factor_classes) - set([current_f2_class]))
-                partner_indices[i] = random.sample(np.where(np.logical_and(Y[:, first_factor_y_dimension]==partner_f1_class, Y[:, second_factor_y_dimension]==partner_f2_class)))
+        # Otherwise, both factors need to be switched
+        elif switch_factors == ['first factor','second factor']:
+            partner_f1_class = random.sample(list(set(first_factor_classes) - set([current_f1_class])), k=1)[0]
+            partner_f2_class = random.sample(list(set(second_factor_classes) - set([current_f2_class])), k=1)[0]
+            partner_indices[i] = random.sample(list(np.where(np.logical_and(Y[:, first_factor_y_dimension]==partner_f1_class, Y[:, second_factor_y_dimension]==partner_f2_class))[0]),k=1)[0]
 
     # Compute P, which is the logits of Yamnet for the first instance of each of the pairs
     layer_index_to_shape = [ [instance_count, 48, 32, 32],  [instance_count, 48, 32, 64],  [instance_count, 24, 16, 128],  [instance_count, 24, 16, 128],  [instance_count, 12, 8, 256],  [instance_count, 12, 8, 256], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 6, 4, 512], [instance_count, 3, 2, 1024], [instance_count, 3, 2, 1024]]
     P = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime, layer_index_to_shape[layer_index]), layer_index=layer_index+1, only_logits=True).numpy()
     
     # Compute Q_before which is the logits of the second instance of each pair before latent transfer
-    Q_before = np.copy([partner_indices])
+    Q_before = np.copy(P[partner_indices])
     
     ### Compute Q_after which is the logits of the second instance of each pair after latent transfer
     
@@ -575,7 +575,7 @@ if __name__ == "__main__":
     parser.add_argument("--random_seed", help="An int (in form of a json string) that is used to set the random module or Python in order to make the instance sampling reproducible. Note, this random seed as well as the validation_proportion should be the same as for the script that calibrated the flow model in order to make sure there is no overlap between the test set and the training/ validation sets.", type=str)
     parser.add_argument("--validation_proportion", help="A float (in form of a json string) indicating the proportion of the entire data that should be used for validating the model.", type=str)
     parser.add_argument("--factor_index_to_z_tilde_dimension", help="A dictionary (in form of a json string) that has two entires, namely one for the first factor of interest and one for the second factor of interest. For a given entry, the key is the index of the factor and the value is the index in the corresponding dimension in the flow model's output along the last axis. This is used to extract the coordinates from the output for plotting in a scatter plot.", type=str)
-    parser.add_argument("--factor_index_to_y_dimension_index", help="A dictionary (in form of a json string) that has two entires, namely one for the first factor of interest and one for the second factor of interest. For a given entry, the key is the index of the factor and the value is the index in the corresponding dimension in the Y variable. Dimensions exclude the residual factor, thus dimension 0 is the first actual factor's dimension.", type=str)
+    parser.add_argument("--factor_index_to_y_dimension", help="A dictionary (in form of a json string) that has two entires, namely one for the first factor of interest and one for the second factor of interest. For a given entry, the key is the index of the factor and the value is the index in the corresponding dimension in the Y variable. Dimensions exclude the residual factor, thus dimension 0 is the first actual factor's dimension.", type=str)
     parser.add_argument("--factor_index_to_included_class_indices_to_names", help="A dictionary (in form of a json string) that maps the index of a factor to another dictionary. That other dictionary maps the indices of its classes to their corresponding display names. The indexing of factors has to be in line with that in the Y files of the test data, i.e. the residual factor is excluded.", type=str)
     parser.add_argument("--factor_index_to_name", help="A dictionary (in form of a json string) that maps the index of a factor to the name of that factor.", type=str)
     parser.add_argument("--latent_representations_folder", help="A list of strings (in form of a json string) that, when concatenated using the os-specific separator, result in a path to a folder in which the original Yamnet latent representations, i.e. before PCA projection, are stored. This folder should directly include the data, not indirectly in e.g. a layer-specific subfolder.", type=str)
@@ -622,6 +622,7 @@ if __name__ == "__main__":
     # User provided configuration file.
     else:
         # Make sure step is provided but no other arguments are.
+        print(args)
         assert args.stage_count == None and args.epoch_count == None and args.dimensions_per_factor == None and args.random_seed == None and args.validation_proportion == None and args.factor_index_to_z_tilde_dimension == None and args.factor_index_to_y_dimension == None and args.factor_index_to_included_class_indices_to_names == None and args.factor_index_to_name == None and args.latent_representations_folder == None and args.layer_index == None and args.pca_projected_folder == None and args.PCA_and_standard_scaler_folder == None and args.flow_model_folder == None and args.figure_folder == None and args.file_name_prefix_to_factor_wise_label == None, "If a configuration file is provided, then no other arguments shall be provided."
         assert args.configuration_step != None, "If a configuration file is given, then also the configuration_step needs to be provided."
 
@@ -676,10 +677,10 @@ if __name__ == "__main__":
     dimensions_per_factor = [62,1,1] # In order of residual factor, material factor, action factor
     random_seed = 42
     validation_proportion = 0.3
-    factor_index_to_z_tilde_dimension = {0:62, 1:63}
-    factor_index_to_y_dimension = {0:0, 1:1}
-    factor_index_to_included_class_indices_to_names = {0: {value: key for key, value in material_to_index.items()}, 1: {value: key for key, value in action_to_index.items()}}
-    factor_index_to_name = {0:'Material',1:'Action'}
+    factor_index_to_z_tilde_dimension = {"0":62, "1":63}
+    factor_index_to_y_dimension = {"0":0, "1":1}
+    factor_index_to_included_class_indices_to_names = {"0": {value: key for key, value in material_to_index.items()}, "1": {value: key for key, value in action_to_index.items()}}
+    factor_index_to_name = {"0":'Material',"1":'Action'}
     latent_representations_folder_path = "E:\\LatentAudio\complete configuration\data\latent\original\Layer 9"
     layer_index = 9
     pca_projected_folder_path = "E:\\LatentAudio\complete configuration\data\latent\pca projected\Layer 9"
@@ -717,9 +718,9 @@ if __name__ == "__main__":
 
     # We are passing the validation data here instead of the test data because the model is not going to be deployed anyways and coordinating test data with the other scripts and other models would be very cumbersome
     # All of the validation data will be used for the scatter plot
-    scatter_plot_disentangled(flow_network=flow_network, Z=Z_validation, Y=Y_validation, factor_index_to_included_class_indices_to_names=factor_index_to_included_class_indices_to_names,
-                              factor_index_to_name=factor_index_to_name, figure_file_path=scatter_plot_file_path)
-    """                        
+    #scatter_plot_disentangled(flow_network=flow_network, Z=Z_validation, Y=Y_validation, factor_index_to_included_class_indices_to_names=factor_index_to_included_class_indices_to_names,
+    #                          factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_name=factor_index_to_name, figure_file_path=scatter_plot_file_path)
+                            
     # Load a sample of even size from yamnets latent space
     x_file_names = utl.find_matching_strings(strings=os.listdir(latent_representations_folder_path), token='_X_')
     x_file_names.sort() # Needed to ensure that the file names are consistently ordered across runs
@@ -733,7 +734,7 @@ if __name__ == "__main__":
         for prefix in file_name_prefix_to_factor_wise_label.keys():
             if prefix in x_file_name: valid = True
         if not valid: x_file_names.remove(x_file_name)
-    x_file_names = x_file_names[:100]
+    
     x_shape = np.load(os.path.join(latent_representations_folder_path, x_file_names[0])).shape
     Z_prime_sample = np.zeros([len(x_file_names)] + list(x_shape)); 
     Y_sample = np.zeros([len(x_file_names), len(list(file_name_prefix_to_factor_wise_label.values())[0])])
@@ -763,4 +764,4 @@ if __name__ == "__main__":
 
     # Log
     print("\n\n\Completed script disentangle")
-    """
+    
