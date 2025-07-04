@@ -109,32 +109,38 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
 
     # Swop each factor
     swops = {list(factor_index_to_name.values())[0]:['first factor'], list(factor_index_to_name.values())[1]:['second factor'], f'{list(factor_index_to_name.values())[0]} and {list(factor_index_to_name.values())[1]}':['first factor','second factor']}
-    
+    entropy= lambda P, Q: P*np.log(Q)
     dissimilarity_function = lambda P, Q: np.sqrt(np.sum(np.power(P-Q, 2), axis=1))# - np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
     plt.figure(figsize=(10,10)); plt.suptitle('Latent Transfer')
     b = 1
     x_min = np.finfo(np.float32).max
     x_max = np.finfo(np.float32).min
-    
+    statistical_results = {"test":f"Wilcoxon Signed Rank between pairwise Yament output logit distances before and after latent transfer for {len(Z_prime)} pairs."}
+
     for factor_name, switch_factors in swops.items():
         # Baseline
         P, Q_before, Q_after = latent_transfer(Z_prime=Z_prime, Y=Y, dimensions_per_factor=dimensions_per_factor, switch_factors=switch_factors, baseline=True, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_y_dimension=factor_index_to_y_dimension)
-        baseline = dissimilarity_function(P, Q_before) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
-        experimental = dissimilarity_function(P, Q_after) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
+        before = dissimilarity_function(P, Q_before) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
+        after = dissimilarity_function(P, Q_after) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
         
         # Plot
-        plt.subplot(len(swops),1,b); plt.title(factor_name)
-        plt.violinplot([baseline,experimental], vert=False, showmedians=True)#plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)
-        plt.yticks([1,2], ['Before Transfer','After Transfer'], rotation=90, va='center')
+        plt.subplot(1,len(swops),b); plt.title(factor_name)
+        plt.errorbar(['Before\nTransfer','After\nTransfer'],[np.mean(before), np.mean(after)], yerr=[np.std(before), np.std(after)])#plt.violinplot([before,after], vert=False, showmedians=True)#plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)
+        plt.errorbar()#plt.yticks([1,2], ['Before Transfer','After Transfer'], rotation=90, va='center')
         x_min = min(x_min, plt.xlim()[0])
         x_max = max(x_max, plt.xlim()[1])
         
+            
+        # Compute KNN Wilcoxon signed rank test to compare distances beforeand after latent transfer
+        tmp = stats.wilcoxon(before, after)
+        statistical_results[f"{factor_name}"] = {"W": tmp.statistic, "p (Bonferroni corrected)": len(swops)*tmp.pvalue}
+
         b+=1
     
     # Set labels and range
     plt.xlabel(r"Euclidean Distance of $P$ and $Q$")
     for i in range (1,b): 
-        plt.subplot(b-1,1,i); plt.xlim([x_min, x_max])
+        plt.subplot(1,b-1,i); plt.xlim([x_min, x_max])
         plt.grid(alpha=0.25)
         if i < b-1: plt.gca().tick_params(labelbottom=False) 
         
@@ -143,6 +149,16 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
         os.rename(figure_file_path, figure_file_path + ' (old) ' + (str)(time.time()))
     plt.tight_layout()
     plt.savefig(figure_file_path)
+    
+    # Save results
+    print_path = os.path.join(figure_folder_path, f"Latent {factor_name} Transfer Statistics.txt")
+    if os.path.exists(print_path): 
+        print(f"\t\tFound existing file at {print_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+        os.rename(print_path, print_path + ' (old) ' + (str)(time.time()))
+
+    with open(print_path, 'w') as file:
+        json.dump(statistical_results, file)
+
     
 def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:List[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, factor_index_to_z_tilde_dimension: Dict[int,int], factor_index_to_y_dimension: Dict[int,int]) -> None:
 
@@ -197,7 +213,7 @@ def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: L
     # Pass the top few dimensions through flow net
     dimension_count = np.sum(dimensions_per_factor)
     Z_tilde = flow_network(Z_prime[:,:dimension_count]).numpy()
-
+    
     # Perform swops
     Z_tilde_after = np.copy(Z_tilde[partner_indices,:])
     for i in range(len(Z_tilde)):
@@ -206,12 +222,9 @@ def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: L
         if 'second factor' in switch_factors:
             Z_tilde_after[i, second_factor_z_tilde_dimension] = Z_tilde[i, second_factor_z_tilde_dimension]
       
-    # Invert flow net
-    Z_after = flow_network.invert(Z_tilde_after)
-
     # Replace top few dimensions
-    Z_prime_after = np.copy(Z_prime)
-    Z_prime_after[:,:dimension_count] = Z_after
+    Z_prime_after = np.copy(Z_prime[partner_indices,:])
+    Z_prime_after[:,:dimension_count] = flow_network.invert(Z_tilde_after)
 
     # Invert full pca, invert scaler
     Z_prime_after = pre_scaler.inverse_transform(pca.inverse_transform(post_scaler.inverse_transform(Z_prime_after)))
@@ -549,10 +562,10 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
 
 
 if __name__ == "__main__":
-    
+    """
     ### Parse input arguments
     parser = argparse.ArgumentParser(
-        prog="create_scalers_and_PCA_model_for_latent_yamnet",
+        prog="evaluate_disentangle",
         description='''This script visualizes the model created by the disentangle script. This happens in two ways:
                     (1) Factor disentanglement: It passes the previously PCA projected data through the flow-model and then creates two scatterplots with the same dots, yet one with 
                     coloring for the first factor and one with coloring for the second factor. It is assumed that each of these two factors only has a single dimension in the flow-mdoel's output.
@@ -672,8 +685,8 @@ if __name__ == "__main__":
     material_to_index = {"W":0,"G":1,"P":2,"S":3,"C":4}#,"M":1,
     action_to_index = {"T":0,"R":1,"W":2}#,"D":4}
 
-    stage_count = 4
-    epoch_count = 50
+    stage_count = 3
+    epoch_count = 500
     dimensions_per_factor = [62,1,1] # In order of residual factor, material factor, action factor
     random_seed = 42
     validation_proportion = 0.3
@@ -688,7 +701,7 @@ if __name__ == "__main__":
     flow_model_folder_path = "E:\\LatentAudio\complete configuration\models\\flow"
     figure_folder_path =  "E:\\LatentAudio\complete configuration\\figures"
     file_name_prefix_to_factor_wise_label =  {f"{m}{a}" : [material_to_index[m], action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()} # File names are of the form MA, where M is the material abbreviation and A the action abbreviation
-    """
+    
     
     ### Start actual data processing
     
@@ -734,7 +747,8 @@ if __name__ == "__main__":
         for prefix in file_name_prefix_to_factor_wise_label.keys():
             if prefix in x_file_name: valid = True
         if not valid: x_file_names.remove(x_file_name)
-    
+    x_file_names = x_file_names[:400]
+
     x_shape = np.load(os.path.join(latent_representations_folder_path, x_file_names[0])).shape
     Z_prime_sample = np.zeros([len(x_file_names)] + list(x_shape)); 
     Y_sample = np.zeros([len(x_file_names), len(list(file_name_prefix_to_factor_wise_label.values())[0])])

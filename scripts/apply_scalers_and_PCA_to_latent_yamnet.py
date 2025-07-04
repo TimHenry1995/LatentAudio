@@ -13,7 +13,7 @@ if __name__ == "__main__":
     
     ### Parse input arguments
     parser = argparse.ArgumentParser(
-        prog="create_scalers_and_PCA_model_for_latent_yamnet",
+        prog="apply_scalers_and_PCA_to_latent_yamnet",
         description='''This script assumes that the `audio_to_latent_yamnet` and `create_scaler_and_PCA_model_for_latent_yamnet` scripts were executed beforehand. 
                         Then, if the `projection_folder` already exists, it will be renamed with appendix '(old) ' and a time-stamp. The script then iterates
                         all layers in `layer_indices` and loads the corresponding latent representations of original dimensionality from the `latent_representations_folder` 

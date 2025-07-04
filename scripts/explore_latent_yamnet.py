@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     ### Parse input arguments
     parser = argparse.ArgumentParser(
-        prog="create_scalers_and_PCA_model_for_latent_yamnet",
+        prog="explore_latent_yamnet",
         description='''This script loads the projections stored by the script apply_scaler_and_PCA_to_latent_yamnet at `pca_projected_folder` and for the given `factor_index`, explores samples 
                         (drawn uniformly at random without replacement and with random seed) of the latent yamnet representations by creating the following plots:
                         (1) A box-plot (with one box for each layer in `layer_indices`) for the accuracies of a cross-validated k-nearest neighbor (KNN) model that predicts the classes of 

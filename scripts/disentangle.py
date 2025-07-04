@@ -119,7 +119,7 @@ if __name__ == "__main__":
     
     ### Parse input arguments
     parser = argparse.ArgumentParser(
-        prog="create_scalers_and_PCA_model_for_latent_yamnet",
+        prog="disentangle",
         description='''This script loads the calibration data stored by apply_scalers_and_PCA_to_latent_yamnet at `pca_projected_folder` and calibrates a flow model on it.
                     The flow model consits of multiple stages. Each stage uses a set of permutation, coupling, activation normalization and reflection layers. 
                     Calibration involves creating pairs of instances and evaluating their equality for each factor. The model is then optimized to cluster like-wise instances along their
