@@ -123,14 +123,16 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
         before = dissimilarity_function(P, Q_before) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
         after = dissimilarity_function(P, Q_after) # P and Q are each of shape [instance count, class count]. cross entropy is of shape [instance count]
         
+        bce=tf.keras.losses.BinaryCrossEntropy()
         # Plot
         plt.subplot(1,len(swops),b); plt.title(factor_name)
-        plt.errorbar(['Before\nTransfer','After\nTransfer'],[np.mean(before), np.mean(after)], yerr=[np.std(before), np.std(after)])#plt.violinplot([before,after], vert=False, showmedians=True)#plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)
-        plt.errorbar()#plt.yticks([1,2], ['Before Transfer','After Transfer'], rotation=90, va='center')
+        plt.violinplot(['Before Transfer','After Transfer'],[before,after], vert=False, showmedians=True)#plt.boxplot([baseline, experimental], showmeans=True, vert=False, showfliers=False)#plt.errorbar(['Before\nTransfer','After\nTransfer'],[np.mean(before), np.mean(after)], yerr=[np.std(before)/len(before), np.std(after)/len(after)])#
+        plt.yticks([1,2], ['Before Transfer','After Transfer'], rotation=90, va='center')
         x_min = min(x_min, plt.xlim()[0])
         x_max = max(x_max, plt.xlim()[1])
         
-            
+        plt.figure(figsize=(10,5)); plt.boxplot(tmp, showfliers=False,vert=False, showmeans=True); plt.title(f'Effect of Latent {factor_name} Transfer on Yamnet Output'); plt.ylabel("Instance Count"); plt.xlabel('Log of Euclidean Distance Between Yamnet Output Logits of Donor And Receptor Sound')
+        bce=tf.keras.losses.BinaryCrossentropy()
         # Compute KNN Wilcoxon signed rank test to compare distances beforeand after latent transfer
         tmp = stats.wilcoxon(before, after)
         statistical_results[f"{factor_name}"] = {"W": tmp.statistic, "p (Bonferroni corrected)": len(swops)*tmp.pvalue}
@@ -158,7 +160,6 @@ def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fac
 
     with open(print_path, 'w') as file:
         json.dump(statistical_results, file)
-
     
 def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], switch_factors:List[str], baseline:bool, pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, factor_index_to_z_tilde_dimension: Dict[int,int], factor_index_to_y_dimension: Dict[int,int]) -> None:
 
@@ -234,61 +235,9 @@ def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: L
     
     # Outputs
     return P, Q_before, Q_after
-    """
-    # Partition the data according to classes
-    partition = {}
-    first_factor_index = (int)(list(factor_index_to_name.keys())[0])
-    second_factor_index = (int)(list(factor_index_to_name.keys())[1])
-    f1s = set(Y[:, first_factor_index]); f2s = set(Y[:,second_factor_index])
-    for f1 in f1s:
-        partition[f"f1{f1}"] = np.copy(Z_tilde[Y[:,first_factor_index]==f1])
     
-    for f2 in f2s:
-        partition[f'f2{f2}'] = np.copy(Z_tilde[Y[:,second_factor_index]==f2])
 
-    # Perform swops
-    Z_tilde_swapped = np.copy(Z_tilde)
-    for i in range(len(Z_tilde)):
-        # Determine the material and action class
-        f1_i = Y[i,first_factor_index]; f2_i = Y[i, second_factor_index]
-
-        # Baseline
-        if baseline:
-            # In baseline mode swaps will only be made for the indicated factors with instances with the same class
-            if 'first factor' in switch_factors:
-                # Sample from the set of points with same material
-                Z_tilde_swapped[i, first_factor_index] = random.choice(partition[f"f1{f1_i}"])[first_factor_index]
-            if 'second factor' in switch_factors:
-                # Sample from the set of points with same action
-                Z_tilde_swapped[i, second_factor_index] = random.choice(partition[f"f2{f2_i}"])[second_factor_index]
-        else:
-            # In experimental mode swaps will only be made for indicated factors with instances that have a different class
-            if 'first factor' in switch_factors:
-                # Sample from the set of points with other material
-                m_j = random.choice(list(f1s.difference({f1_i})))
-                Z_tilde_swapped[i, first_factor_index] = random.choice(partition[f"f1{m_j}"])[first_factor_index]
-            if 'second factor' in switch_factors:
-                # Sample from the set of points with other action
-                a_j = random.choice(list(f2s.difference({f2_i})))
-                Z_tilde_swapped[i, second_factor_index] = random.choice(partition[f"f2{a_j}"])[second_factor_index]
-      
-    # Invert flow net
-    Z_swapped = flow_network.invert(Z_tilde_swapped)
-
-    # Replace top few dimensions
-    Z_prime_swapped = np.copy(Z_prime)
-    Z_prime_swapped[:,:dimension_count] = Z_swapped
-
-    # Invert full pca, invert scaler
-    Z_prime_swapped = pre_scaler.inverse_transform(pca.inverse_transform(post_scaler.inverse_transform(Z_prime_swapped)))
-
-    # Continue processing through yamnet
-    Q = layer_wise_yamnet.call_from_layer(np.reshape(Z_prime_swapped, layer_index_to_shape[layer_index]), layer_index=layer_index+1, only_logits=True).numpy()
-    
-    # Outputs
-    return P, Q
-    """
-'''
+"""
 def plot_latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, plot_save_path: str, factor_index_to_name: Dict[int,str], factor_index_to_z_tilde_dimension: Dict[int,int], y_factor_index_to_dimension_index: Dict[int,int]) -> None:
 
     dissimilarity_function = lambda P, Q: np.sqrt(np.sum((P-Q)**2, axis=1))#- np.sum(entropy(tf.nn.softmax(P, axis=1),tf.nn.softmax(Q, axis=1)),axis=1)
@@ -340,7 +289,7 @@ def plot_latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fact
         assert len(H_PM) > max(sample_size_mp, sample_size_mq), "Sample sizes were too small to do a significance test." # The others Hs have the same number of instances
         indices = random.sample(range(len(H_PM)), max(sample_size_mp, sample_size_mq))
         
-        
+        '''
         Latent Transfer statististics Material
         H_PM and H_P_M_to_P have test results:
         TtestResult(statistic=2.785779995991498, pvalue=0.005858864225107021, df=198)
@@ -353,7 +302,7 @@ def plot_latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_fact
         TtestResult(statistic=2.5633447859516485, pvalue=0.010551890126375264, df=786)
         H_PM and H_P_M_to_Q have test results:
         TtestResult(statistic=-3.5004239493223115, pvalue=0.0005331221549660843, df=308)
-
+        '''
         # Plot
         plt.subplot(1,2,b); plt.title(current_factor_name)
         means = [np.mean(H_PM),np.mean(H_P_M_to_P),np.mean(H_P_M_to_Q)]
@@ -460,8 +409,9 @@ def latent_transfer(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: L
     
     # Outputs
     return P, M, M_to_P, M_to_Q
-'''
 
+"""
+   
 def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tuple[float, float], manifold_function: Callable, manifold_name:str, layer_steps: List[int], step_titles: List[str]):
     """Plots for each layer (or rather step of consecutive layers) the contribution to the data transformation. The plot is strucutred into three rows.
     The first row shows a stacked bar chart whose bottom segment is the contribution due to affine transformation and the top segment is the contribution
@@ -562,7 +512,7 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
 
 
 if __name__ == "__main__":
-    
+    """
     ### Parse input arguments
     parser = argparse.ArgumentParser(
         prog="evaluate_disentangle",
@@ -694,14 +644,14 @@ if __name__ == "__main__":
     factor_index_to_y_dimension = {"0":0, "1":1}
     factor_index_to_included_class_indices_to_names = {"0": {value: key for key, value in material_to_index.items()}, "1": {value: key for key, value in action_to_index.items()}}
     factor_index_to_name = {"0":'Material',"1":'Action'}
-    latent_representations_folder_path = "E:\\LatentAudio\complete configuration\data\latent\original\Layer 9"
+    latent_representations_folder_path = "D:\\LatentAudio\complete configuration\data\latent\original\Layer 9"
     layer_index = 9
-    pca_projected_folder_path = "E:\\LatentAudio\complete configuration\data\latent\pca projected\Layer 9"
-    PCA_and_standard_scaler_folder_path = "E:\\LatentAudio\complete configuration\models\pca and standard scalers\Layer 9"
-    flow_model_folder_path = "E:\\LatentAudio\complete configuration\models\\flow"
-    figure_folder_path =  "E:\\LatentAudio\complete configuration\\figures"
+    pca_projected_folder_path = "D:\\LatentAudio\complete configuration\data\latent\pca projected\Layer 9"
+    PCA_and_standard_scaler_folder_path = "D:\\LatentAudio\complete configuration\models\pca and standard scalers\Layer 9"
+    flow_model_folder_path = "D:\\LatentAudio\complete configuration\models\\flow"
+    figure_folder_path =  "D:\\LatentAudio\complete configuration\\figures"
     file_name_prefix_to_factor_wise_label =  {f"{m}{a}" : [material_to_index[m], action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()} # File names are of the form MA, where M is the material abbreviation and A the action abbreviation
-    """
+    
     
     ### Start actual data processing
     
@@ -731,8 +681,8 @@ if __name__ == "__main__":
 
     # We are passing the validation data here instead of the test data because the model is not going to be deployed anyways and coordinating test data with the other scripts and other models would be very cumbersome
     # All of the validation data will be used for the scatter plot
-    scatter_plot_disentangled(flow_network=flow_network, Z=Z_validation, Y=Y_validation, factor_index_to_included_class_indices_to_names=factor_index_to_included_class_indices_to_names,
-                              factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_name=factor_index_to_name, figure_file_path=scatter_plot_file_path)
+    #scatter_plot_disentangled(flow_network=flow_network, Z=Z_validation, Y=Y_validation, factor_index_to_included_class_indices_to_names=factor_index_to_included_class_indices_to_names,
+    #                          factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_name=factor_index_to_name, figure_file_path=scatter_plot_file_path)
                             
     # Load a sample of even size from yamnets latent space
     x_file_names = utl.find_matching_strings(strings=os.listdir(latent_representations_folder_path), token='_X_')
@@ -773,7 +723,7 @@ if __name__ == "__main__":
     bar_plot_file_path = os.path.join(figure_folder_path, f'Flow model bar {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices'.replace(":","="))
     bar_plot_file_path = bar_plot_file_path[:256] + '.png' # Trim path if too long
 
-    #plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, figure_file_path=bar_plot_file_path, factor_index_to_name=factor_index_to_name, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_y_dimension=factor_index_to_y_dimension)
+    plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, figure_file_path=bar_plot_file_path, factor_index_to_name=factor_index_to_name, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_y_dimension=factor_index_to_y_dimension)
     #plot_latent_transfer(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, plot_save_path=bar_plot_file_path, factor_index_to_name=factor_index_to_name, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, y_factor_index_to_dimension_index=y_factor_index_to_dimension_index)
 
     # Log
