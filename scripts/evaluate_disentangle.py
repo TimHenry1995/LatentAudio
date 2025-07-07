@@ -562,7 +562,7 @@ def plot_contribution_per_layer(network: mfl.SequentialFlowNetwork, s_range: Tup
 
 
 if __name__ == "__main__":
-    """
+    
     ### Parse input arguments
     parser = argparse.ArgumentParser(
         prog="evaluate_disentangle",
@@ -701,7 +701,7 @@ if __name__ == "__main__":
     flow_model_folder_path = "E:\\LatentAudio\complete configuration\models\\flow"
     figure_folder_path =  "E:\\LatentAudio\complete configuration\\figures"
     file_name_prefix_to_factor_wise_label =  {f"{m}{a}" : [material_to_index[m], action_to_index[a]] for m in material_to_index.keys() for a in action_to_index.keys()} # File names are of the form MA, where M is the material abbreviation and A the action abbreviation
-    
+    """
     
     ### Start actual data processing
     
@@ -731,8 +731,8 @@ if __name__ == "__main__":
 
     # We are passing the validation data here instead of the test data because the model is not going to be deployed anyways and coordinating test data with the other scripts and other models would be very cumbersome
     # All of the validation data will be used for the scatter plot
-    #scatter_plot_disentangled(flow_network=flow_network, Z=Z_validation, Y=Y_validation, factor_index_to_included_class_indices_to_names=factor_index_to_included_class_indices_to_names,
-    #                          factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_name=factor_index_to_name, figure_file_path=scatter_plot_file_path)
+    scatter_plot_disentangled(flow_network=flow_network, Z=Z_validation, Y=Y_validation, factor_index_to_included_class_indices_to_names=factor_index_to_included_class_indices_to_names,
+                              factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_name=factor_index_to_name, figure_file_path=scatter_plot_file_path)
                             
     # Load a sample of even size from yamnets latent space
     x_file_names = utl.find_matching_strings(strings=os.listdir(latent_representations_folder_path), token='_X_')
@@ -773,7 +773,7 @@ if __name__ == "__main__":
     bar_plot_file_path = os.path.join(figure_folder_path, f'Flow model bar {stage_count} stages, {epoch_count} epochs, {dimensions_per_factor} dimensions per factor and {factor_index_to_included_class_indices} included class indices'.replace(":","="))
     bar_plot_file_path = bar_plot_file_path[:256] + '.png' # Trim path if too long
 
-    plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, figure_file_path=bar_plot_file_path, factor_index_to_name=factor_index_to_name, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_y_dimension=factor_index_to_y_dimension)
+    #plot_permutation_test(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, figure_file_path=bar_plot_file_path, factor_index_to_name=factor_index_to_name, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, factor_index_to_y_dimension=factor_index_to_y_dimension)
     #plot_latent_transfer(Z_prime=Z_prime_sample, Y=Y_sample, dimensions_per_factor=dimensions_per_factor, pre_scaler=pre_scaler, pca=pca, post_scaler=post_scaler, flow_network=flow_network, layer_wise_yamnet=layer_wise_yamnet, layer_index=layer_index, plot_save_path=bar_plot_file_path, factor_index_to_name=factor_index_to_name, factor_index_to_z_tilde_dimension=factor_index_to_z_tilde_dimension, y_factor_index_to_dimension_index=y_factor_index_to_dimension_index)
 
     # Log
