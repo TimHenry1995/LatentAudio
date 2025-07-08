@@ -103,7 +103,7 @@ def scatter_plot_disentangled(flow_network, Z, Y,
         print(f"\t\tFound existing figure at {figure_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(figure_file_path, (figure_file_path[:-4] + ' (old) ' + (str)(time.time()))[:256] + '.png')
     plt.tight_layout()
-    plt.show()
+    
     plt.savefig(figure_file_path)
 
 def plot_permutation_test(Z_prime: np.ndarray, Y: np.ndarray, dimensions_per_factor: List[int], pre_scaler: Callable, pca: Callable, post_scaler: Callable, flow_network: Callable, layer_wise_yamnet: Callable, layer_index: int, figure_file_path: str, factor_index_to_name, factor_index_to_z_tilde_dimension: Dict[int,int],factor_index_to_y_dimension: Dict[int,int]) -> None:

@@ -251,15 +251,17 @@ if __name__ == "__main__":
     # Calibrate
     flow_network.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate))
     print("\t\tNow fitting the flow model to the data.")
-    means_train, stds_train, means_validation, stds_validation = flow_network.fit(epoch_count=epoch_count, batch_count=len(Z_train)//batch_size, iterator=train_iterator, iterator_validate=validation_iterator)
+    #means_train, stds_train, means_validation, stds_validation = 
+    for i in range(0, epoch_count, 10):
+        flow_network.fit(epoch_count=(i+1)*10, batch_count=len(Z_train)//batch_size, iterator=train_iterator, iterator_validate=validation_iterator)
 
-    plot_calibration_trajectory(means_train=means_train, stds_train=stds_train, means_validate=means_validation, stds_validate=stds_validation, batch_size=batch_size, figure_file_path=flow_model_calibration_figure_file_path, epoch_count=epoch_count)
+        #plot_calibration_trajectory(means_train=means_train, stds_train=stds_train, means_validate=means_validation, stds_validate=stds_validation, batch_size=batch_size, figure_file_path=flow_model_calibration_figure_file_path, epoch_count=epoch_count)
 
-    # Save existing model
-    if os.path.exists(flow_model_file_path): 
-        print(f"\t\tFound existing model at {flow_model_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
-        os.rename(flow_model_file_path, flow_model_file_path + ' (old) ' + (str)(time.time()))
-    flow_network.save_weights(flow_model_file_path)
-    
+        # Save existing model
+        if os.path.exists(flow_model_file_path): 
+            print(f"\t\tFound existing model at {flow_model_file_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+            os.rename(flow_model_file_path, flow_model_file_path + ' (old) ' + (str)(time.time()))
+        flow_network.save_weights(flow_model_file_path)
+        
     # Log
     print("\n\n\Completed script disentangle")
