@@ -31,7 +31,7 @@ def scatter_plot_disentangled(flow_network, Z, Y,
     first_factor_class_indices = list(factor_index_to_included_class_indices[first_factor_index])
     first_factor_class_labels = list(factor_index_to_included_class_indices_to_names[first_factor_index].values())
     first_factor_index = (int)(first_factor_index)
-
+    
     second_factor_index = list(factor_index_to_included_class_indices_to_names.keys())[1]
     second_factor_name = factor_index_to_name[second_factor_index]
     second_factor_dimension = factor_index_to_z_tilde_dimension[second_factor_index]
@@ -43,7 +43,15 @@ def scatter_plot_disentangled(flow_network, Z, Y,
     Z_tilde = flow_network(Z)
     first_factor_Z_tilde = Z_tilde[:,first_factor_dimension] # First factor's dimension
     second_factor_Z_tilde = Z_tilde[:,second_factor_dimension] # Second factor's dimension
-
+    first_factor_class_means = [np.mean(first_factor_Z_tilde[Y[:,first_factor_index]==c]) for c in first_factor_class_indices]
+    permutation = np.argsort(first_factor_class_means)
+    first_factor_class_indices = [first_factor_class_indices[c] for c in permutation]
+    first_factor_class_labels = [first_factor_class_labels[c] for c in permutation]
+    second_factor_class_means = [np.mean(second_factor_Z_tilde[Y[:,second_factor_index]==c]) for c in second_factor_class_indices]
+    permutation = np.argsort(second_factor_class_means)
+    second_factor_class_indices = [second_factor_class_indices[c] for c in permutation]
+    second_factor_class_labels = [second_factor_class_labels[c] for c in permutation]
+    
     # Plot
     plt.subplots(2, 4, figsize=(12,6), gridspec_kw={'width_ratios': [1,5,1,5], 'height_ratios': [5,1]})
 
