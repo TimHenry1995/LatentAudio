@@ -10,7 +10,7 @@ import LatentAudio.adapters.layer_wise as ylw
 
 if __name__ == "__main__":
 
-    
+    """
     ### Parse input arguments
     parser = argparse.ArgumentParser(
         prog="apply_scalers_and_PCA_to_latent_yamnet",
@@ -93,19 +93,22 @@ if __name__ == "__main__":
     print("\n\tStarting script now:\n")
 
     ### Start actual data processing
-    
     # Rename prexisting output folder
     if os.path.exists(projection_folder_path):
         print(f"\t\tFound existing folder at {projection_folder_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(projection_folder_path, projection_folder_path + ' (old) ' + str(time.time()))
-        
+    """
+
+    PCA_and_standard_scaler_folder_path = os.path.join(*["D:\\\\", "LatentAudio", "complete configuration", "models", "pca and standard scalers"])
+    layer_indices = list(range(14))
+    
     # Iterate layers
     explained_variances = [None] * len(layer_indices)
     for l, layer_index in enumerate(layer_indices):
         print(f"\n\t\tLayer {layer_index}.")
 
         # Manage path for layer
-        latent_representations_folder_layer_path = os.path.join(latent_representations_folder_path, f'Layer {layer_index}')
+        #latent_representations_folder_layer_path = os.path.join(latent_representations_folder_path, f'Layer {layer_index}')
         PCA_and_standard_scaler_folder_layer_path = os.path.join(PCA_and_standard_scaler_folder_path, f"Layer {layer_index}")
         
         # Loads models
@@ -115,9 +118,10 @@ if __name__ == "__main__":
         with open(os.path.join(PCA_and_standard_scaler_folder_layer_path, "PCA.pkl"),'rb') as fh:
             pca = pkl.load(fh)
             # Extract explained proportion of variance for plotting
-            target_dimensionality = target_dimensionalities[l]
-            explained_variances[l] = pca.explained_variance_ratio_[:target_dimensionality]
-        
+            #target_dimensionality = target_dimensionalities[l]
+            explained_variances[l] = np.sum(pca.explained_variance_ratio_[:64])
+    print(explained_variances)
+    """
         with open(os.path.join(PCA_and_standard_scaler_folder_layer_path, "Post PCA Standard Scaler.pkl"), 'rb') as fh:
             post_scaler = pkl.load(fh)
 
@@ -180,4 +184,4 @@ if __name__ == "__main__":
     
     # Log
     print("\n\n\Completed script apply_scalers_and_PCA_to_latent_yamnet")
-            
+            """

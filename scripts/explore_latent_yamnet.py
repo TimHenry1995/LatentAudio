@@ -15,7 +15,7 @@ from typing import List
 from LatentAudio.adapters import layer_wise as ylw
 if __name__ == "__main__":
     
-
+    """
     ### Parse input arguments
     parser = argparse.ArgumentParser(
         prog="explore_latent_yamnet",
@@ -106,17 +106,17 @@ if __name__ == "__main__":
     print("\t\tfigure_folder path: ", figure_folder_path)
     print("\n\tStarting script now:\n")
     """
-    pca_projected_folder_path = "E:\\LatentAudio\simple configuration\data\latent\pca projected"
-    layer_indices = [0, 9, 13]
+    pca_projected_folder_path = "D:\\LatentAudio\complete configuration\data\latent\pca projected"
+    layer_indices = [0, 8, 13]
     random_seeds = [42, 42, 42]
-    sample_sizes = [10000, 10000, 10000]
+    sample_sizes = [3000, 3000, 3000]
     factor_name = "Material"
     factor_index = 0
     cross_validation_folds = 10
     neighbor_count = 10
-    class_index_to_name = {0: 'W', 1: 'M', 2: 'G',3: 'C'}
-    figure_folder_path = "E:\\LatentAudio\simple configuration\\figures"
-    """
+    class_index_to_name = {"0": "W", "1": "G", "2": "P", "3": "S", "4": "C"}#{"0": "T", "1": "R", "2": "W"}#
+    figure_folder_path = "D:\\LatentAudio\complete configuration\\figures"
+    
     ### Start actual data processing
 
     # File management
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     print_path = os.path.join(figure_folder_path, f"Latent {factor_name} KNN Classification Statistics.txt")
     if os.path.exists(print_path): 
         print(f"\t\tFound existing file at {print_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
-        os.rename(print_path, print_path + ' (old) ' + (str)(time.time()))
+        os.rename(print_path, print_path[:-4] + ' (old) ' + (str)(time.time())+".txt")
 
     with open(print_path, 'w') as file:
         json.dump(statistical_results, file)
@@ -185,9 +185,9 @@ if __name__ == "__main__":
     
     # Plot KNN
     print(f"\t\tPlotting KNN accuracies and TSNE scatterplots.")
-    plt.figure(figsize=(len(layer_indices),7)); plt.title(f"Latent {factor_name} KNN Classification")
+    plt.figure(figsize=(1.5*len(layer_indices),5)); plt.title(f"{factor_name}")
     plt.boxplot([KNN_accuracies[layer_index] for layer_index in layer_indices], labels=[ylw.LayerWiseYamnet.layer_names[layer_index] for layer_index in layer_indices])
-    
+
     # Add chance level line
     a = (int)(np.where(np.array(layer_indices)==first_index)[0][0])+1 # Used as x value for horizontal line
     b = (int)(np.where(np.array(layer_indices)==most_accurate_layer_index)[0][0])+1 # Used as x value for horizontal line
@@ -201,18 +201,18 @@ if __name__ == "__main__":
     if statistical_results[f"Layer {first_index} versus {most_accurate_layer_index}"]["p (Bonferroni corrected)"] < 0.05: plt.text((a+b)/2, 1.06, '*')
     if statistical_results[f"Layer {most_accurate_layer_index} versus {last_index}"]["p (Bonferroni corrected)"] < 0.05: plt.text((c+b)/2, 1.11, '*')
     if statistical_results[f"Layer {first_index} versus {last_index}"]["p (Bonferroni corrected)"] < 0.05: plt.text((a+c)/2, 1.16, '*')
-    
+
     # Save figure
     knn_figure_path = os.path.join(figure_folder_path, f"Latent {factor_name} KNN Classification")
     if os.path.exists(knn_figure_path): 
         print(f"\t\tFound existing file at {knn_figure_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
-        os.rename(knn_figure_path, knn_figure_path + ' (old) ' + (str)(time.time()))
+        os.rename(knn_figure_path, knn_figure_path[:-4] + ' (old) ' + (str)(time.time())+".txt")
     plt.tight_layout()
     plt.savefig(knn_figure_path)
     
     # Plot t-SNE
-    plt.figure(figsize=(10,3))
-    plt.suptitle(f"Latent {factor_name} t-SNE Projections")
+    plt.figure(figsize=(9,3))
+    plt.suptitle(f"{factor_name}")
     p=0 # subplot index
     for l, layer_index in {layer_indices.index(element): element for element in [first_index, most_accurate_layer_index, last_index]}.items():
 
@@ -227,14 +227,14 @@ if __name__ == "__main__":
             plt.legend([class_index_to_name[(str)((int)(class_index))] for class_index in class_indices])
             plt.ylabel('Dimension 2')
         plt.xticks([]); plt.yticks([])
-    
-    # Save figure
-    tsne_figure_path = os.path.join(figure_folder_path, f"Latent {factor_name} t-SNE Projections")
-    if os.path.exists(tsne_figure_path): 
-        print(f"\t\tFound existing file at {tsne_figure_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
-        os.rename(tsne_figure_path, tsne_figure_path + ' (old) ' + (str)(time.time()))
-    plt.tight_layout()
-    plt.savefig(tsne_figure_path)
+
+        # Save figure
+        tsne_figure_path = os.path.join(figure_folder_path, f"Latent {factor_name} t-SNE Projections")
+        if os.path.exists(tsne_figure_path): 
+            print(f"\t\tFound existing file at {tsne_figure_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
+            os.rename(tsne_figure_path, tsne_figure_path[:-4] + ' (old) ' + (str)(time.time())+".txt")
+        plt.tight_layout()
+        plt.savefig(tsne_figure_path)
     
     # Log
     print("\n\n\Completed script explore_latent_yamnet")

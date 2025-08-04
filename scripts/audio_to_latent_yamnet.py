@@ -13,7 +13,7 @@ plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
 
 if __name__ == "__main__":
-    
+    """
     ### Parse input arguments
     parser = argparse.ArgumentParser(
         prog="audio_to_latent_yamnet",
@@ -104,7 +104,14 @@ if __name__ == "__main__":
         print(f"\t\tFound existing folder at {latent_representations_folder_path}. Renaming that one with appendix ' (old) ' and time-stamp.")
         os.rename(latent_representations_folder_path,
                   latent_representations_folder_path + " (old) " + str(time.time()))
+    """
+
+    sounds_folder_path = os.path.join(*["LatentAudio", "data", "sounds", "complete"])
+    sound_file_names =["WT.wav", "WR.wav", "WW.wav"]
     
+    layer_indices=[1]
+    
+
     # Convert audio to latent Yamnet
     dimensionalities = [None] * len(layer_indices)
     for l, layer_index in enumerate(layer_indices):
@@ -113,10 +120,10 @@ if __name__ == "__main__":
         tf.keras.backend.clear_session() # Need to clear session because otherwise yamnet cannot be loaded
         yamnet = ylw.LayerWiseYamnet()
         yamnet.load_weights(os.path.join('LatentAudio','plugins','yamnet','yamnet.h5'))
-        
+
         # Ensure the output folder exist
-        layer_path = os.path.join(latent_representations_folder_path, f'Layer {layer_index}')
-        os.makedirs(layer_path)
+        #layer_path = os.path.join(latent_representations_folder_path, f'Layer {layer_index}')
+        #os.makedirs(layer_path)
 
         # Log
         print(f"\n\t\tLayer {layer_index}.")
@@ -127,11 +134,11 @@ if __name__ == "__main__":
             # Load .wav file
             waveform, sampling_rate = sf.read(os.path.join(sounds_folder_path,sound_file_name), dtype=np.int16)
             assert sampling_rate == 16000, f"The sampling rate of the sound file {sound_file_name} was assumed to be 16000 in order to apply the decimation algorithm and achieve Yamnet's 16000. The provided audio has sampling rate {sampling_rate}. You need to use a different downsampling method, e.g. from sklearn to meet Yamnet's requirement."
-            
+
             # Normalize
             waveform =  waveform.astype('float32')
             waveform = waveform / np.max(waveform)
-            
+
             # Pass through yamnet up until target layer
             latent = yamnet.call_until_layer(waveform=waveform, layer_index=layer_index).numpy()
             dimensionalities[l] = np.product(latent.shape[1:]) # Flattened dimensionality
